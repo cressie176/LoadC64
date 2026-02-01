@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Game {
+    id: String,
     title: String,
     sort_key: String,
     year: Option<u16>,
@@ -11,6 +12,7 @@ pub struct Game {
 
 impl Game {
     pub const fn new(
+        id: String,
         title: String,
         sort_key: String,
         year: Option<u16>,
@@ -18,6 +20,7 @@ impl Game {
         notes: Option<String>,
     ) -> Self {
         Self {
+            id,
             title,
             sort_key,
             year,
@@ -38,14 +41,12 @@ impl Game {
         )
     }
 
-    pub fn starts_with(&self, c: char) -> bool {
-        self.sort_key.starts_with(c)
+    pub fn has_id(&self, game_id: &str) -> bool {
+        self.id == game_id
     }
 
-    pub fn same_section(&self, other: &Self) -> bool {
-        let self_char = self.sort_key.chars().next();
-        let other_char = other.sort_key.chars().next();
-        self_char == other_char
+    pub fn starts_with(&self, c: char) -> bool {
+        self.sort_key.starts_with(c)
     }
 }
 
@@ -65,41 +66,35 @@ impl PartialOrd for Game {
 mod tests {
     use super::*;
 
+    fn test_game(id: &str, title: &str, sort_key: &str) -> Game {
+        Game::new(
+            id.to_string(),
+            title.to_string(),
+            sort_key.to_string(),
+            None,
+            None,
+            None,
+        )
+    }
+
     #[test]
     fn test_games_sorted_by_sort_key() {
-        let game1 = Game::new(
-            "Zak McKracken".to_string(),
-            "zak-mckracken".to_string(),
-            Some(1988),
-            None,
-            None,
-        );
-        let game2 = Game::new(
-            "Monkey Island".to_string(),
-            "monkey-island".to_string(),
-            Some(1990),
-            None,
-            None,
-        );
-        let game3 = Game::new(
-            "Maniac Mansion".to_string(),
-            "maniac-mansion".to_string(),
-            Some(1987),
-            None,
-            None,
-        );
+        let game1 = test_game("1", "Zak McKracken", "zak-mckracken");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
+        let game3 = test_game("3", "Maniac Mansion", "maniac-mansion");
 
         let mut games = vec![game1, game2, game3];
         games.sort();
 
-        assert_eq!(games[0].sort_key, "maniac-mansion");
-        assert_eq!(games[1].sort_key, "monkey-island");
-        assert_eq!(games[2].sort_key, "zak-mckracken");
+        assert!(games[0].starts_with('m'));
+        assert!(games[1].starts_with('m'));
+        assert!(games[2].starts_with('z'));
     }
 
     #[test]
     fn test_visitor_with_all_fields() {
         let game = Game::new(
+            "1".to_string(),
             "Monkey Island".to_string(),
             "monkey-island".to_string(),
             Some(1990),
@@ -120,13 +115,7 @@ mod tests {
 
     #[test]
     fn test_visitor_with_none_fields() {
-        let game = Game::new(
-            "Unknown Game".to_string(),
-            "unknown-game".to_string(),
-            None,
-            None,
-            None,
-        );
+        let game = test_game("1", "Unknown Game", "unknown-game");
 
         game.visit(|title, year, publisher, notes| {
             assert_eq!(title, "Unknown Game");

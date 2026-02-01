@@ -57,6 +57,16 @@ impl Section for CharacterSection {
         }
     }
 
+    fn jump(&mut self, game_id: &str) -> bool {
+        for (idx, game) in self.games.iter().enumerate() {
+            if game.has_id(game_id) {
+                self.current_game_idx = idx;
+                return true;
+            }
+        }
+        false
+    }
+
     fn with_current_game<F, R>(&self, f: F) -> Option<R>
     where
         F: FnOnce(&Game) -> R,
@@ -100,18 +110,13 @@ impl PartialOrd for CharacterSection {
 
 #[cfg(test)]
 mod tests {
+    use super::super::test_utils::test_game;
     use super::*;
 
     #[test]
     fn test_character_section_adds_matching_games() {
         let mut section = CharacterSection::new('m');
-        let game = Game::new(
-            "Monkey Island".to_string(),
-            "monkey-island".to_string(),
-            None,
-            None,
-            None,
-        );
+        let game = test_game("1", "Monkey Island", "monkey-island");
 
         assert!(section.add(&game));
     }
@@ -119,13 +124,7 @@ mod tests {
     #[test]
     fn test_character_section_rejects_non_matching_games() {
         let mut section = CharacterSection::new('m');
-        let game = Game::new(
-            "Zak McKracken".to_string(),
-            "zak-mckracken".to_string(),
-            None,
-            None,
-            None,
-        );
+        let game = test_game("1", "Zak McKracken", "zak-mckracken");
 
         assert!(!section.add(&game));
     }
@@ -134,27 +133,9 @@ mod tests {
     fn test_character_section_sorts_games() {
         let mut section = CharacterSection::new('m');
 
-        let game1 = Game::new(
-            "Monkey Island 2".to_string(),
-            "monkey-island-2".to_string(),
-            None,
-            None,
-            None,
-        );
-        let game2 = Game::new(
-            "Maniac Mansion".to_string(),
-            "maniac-mansion".to_string(),
-            None,
-            None,
-            None,
-        );
-        let game3 = Game::new(
-            "Monkey Island".to_string(),
-            "monkey-island".to_string(),
-            None,
-            None,
-            None,
-        );
+        let game1 = test_game("1", "Monkey Island 2", "monkey-island-2");
+        let game2 = test_game("2", "Maniac Mansion", "maniac-mansion");
+        let game3 = test_game("3", "Monkey Island", "monkey-island");
 
         section.add(&game1);
         section.add(&game2);
@@ -168,52 +149,30 @@ mod tests {
     fn test_character_section_next_navigation() {
         let mut section = CharacterSection::new('m');
 
-        let game1 = Game::new(
-            "Maniac Mansion".to_string(),
-            "maniac-mansion".to_string(),
-            None,
-            None,
-            None,
-        );
-        let game2 = Game::new(
-            "Monkey Island".to_string(),
-            "monkey-island".to_string(),
-            None,
-            None,
-            None,
-        );
-        let game3 = Game::new(
-            "Marble Madness".to_string(),
-            "marble-madness".to_string(),
-            None,
-            None,
-            None,
-        );
+        let game1 = test_game("1", "Maniac Mansion", "maniac-mansion");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
+        let game3 = test_game("3", "Marble Madness", "marble-madness");
 
         section.add(&game1);
         section.add(&game2);
         section.add(&game3);
 
-        let title =
-            section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
+        let title = section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
         assert_eq!(title, Some("Maniac Mansion".to_string()));
 
         let moved = section.next();
         assert!(moved);
-        let title =
-            section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
+        let title = section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
         assert_eq!(title, Some("Marble Madness".to_string()));
 
         let moved = section.next();
         assert!(moved);
-        let title =
-            section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
+        let title = section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
         assert_eq!(title, Some("Monkey Island".to_string()));
 
         let moved = section.next();
         assert!(!moved);
-        let title =
-            section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
+        let title = section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
         assert_eq!(title, Some("Monkey Island".to_string()));
     }
 
@@ -221,40 +180,20 @@ mod tests {
     fn test_character_section_previous_navigation() {
         let mut section = CharacterSection::new('m');
 
-        let game1 = Game::new(
-            "Maniac Mansion".to_string(),
-            "maniac-mansion".to_string(),
-            None,
-            None,
-            None,
-        );
-        let game2 = Game::new(
-            "Monkey Island".to_string(),
-            "monkey-island".to_string(),
-            None,
-            None,
-            None,
-        );
-        let game3 = Game::new(
-            "Marble Madness".to_string(),
-            "marble-madness".to_string(),
-            None,
-            None,
-            None,
-        );
+        let game1 = test_game("1", "Maniac Mansion", "maniac-mansion");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
+        let game3 = test_game("3", "Marble Madness", "marble-madness");
 
         section.add(&game1);
         section.add(&game2);
         section.add(&game3);
 
-        let title =
-            section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
+        let title = section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
         assert_eq!(title, Some("Maniac Mansion".to_string()));
 
         let moved = section.previous();
         assert!(!moved);
-        let title =
-            section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
+        let title = section.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
         assert_eq!(title, Some("Maniac Mansion".to_string()));
     }
 
