@@ -1,6 +1,8 @@
 use iced::widget::{column, container, text};
 use iced::{Element, Task};
 
+mod domain;
+
 fn main() -> iced::Result {
     iced::application("Load!64", Load64::update, Load64::view).run_with(Load64::new)
 }
