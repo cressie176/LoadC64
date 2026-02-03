@@ -4,8 +4,6 @@ use super::cursor::Cursor;
 use super::game::{Game, GameId};
 use super::section::Section;
 
-type SectionFactory = Box<dyn Fn(&Game) -> Box<dyn Section>>;
-
 const fn next_index(current: usize, len: usize) -> usize {
     (current + 1) % len
 }
@@ -14,14 +12,14 @@ const fn previous_index(current: usize, len: usize) -> usize {
     (current + len - 1) % len
 }
 
-pub struct Library {
+pub struct Library<S: Section + Ord> {
     games: HashMap<GameId, Game>,
-    sections: Vec<Box<dyn Section>>,
-    section_factory: SectionFactory,
+    sections: Vec<S>,
+    section_factory: Box<dyn Fn(&Game) -> S>,
 }
 
-impl Library {
-    pub fn new(section_factory: SectionFactory) -> Self {
+impl<S: Section + Ord> Library<S> {
+    pub fn new(section_factory: Box<dyn Fn(&Game) -> S>) -> Self {
         Self {
             games: HashMap::new(),
             sections: Vec::new(),
@@ -56,7 +54,8 @@ impl Library {
     fn create_section(&mut self, game_id: &GameId) -> usize {
         let new_section = (self.section_factory)(&self.games[game_id]);
         self.sections.push(new_section);
-        self.sections.len() - 1
+        self.sections.sort();
+        self.find_section(game_id).unwrap()
     }
 
     fn categorise_game(&mut self, section_index: usize, game_id: &GameId) {
@@ -148,21 +147,21 @@ impl Library {
         Some(current_cursor)
     }
 
-    fn get_current_section(&self, cursor: &Cursor) -> &dyn Section {
+    fn get_current_section(&self, cursor: &Cursor) -> &S {
         let current_section_index = self.find_section_index(cursor);
-        self.sections[current_section_index].as_ref()
+        &self.sections[current_section_index]
     }
 
-    fn get_next_section(&self, cursor: &Cursor) -> &dyn Section {
+    fn get_next_section(&self, cursor: &Cursor) -> &S {
         let current_section_index = self.find_section_index(cursor);
         let next_section_index = next_index(current_section_index, self.sections.len());
-        self.sections[next_section_index].as_ref()
+        &self.sections[next_section_index]
     }
 
-    fn get_previous_section(&self, cursor: &Cursor) -> &dyn Section {
+    fn get_previous_section(&self, cursor: &Cursor) -> &S {
         let current_section_index = self.find_section_index(cursor);
         let prev_section_index = previous_index(current_section_index, self.sections.len());
-        self.sections[prev_section_index].as_ref()
+        &self.sections[prev_section_index]
     }
 
     fn find_section_index(&self, cursor: &Cursor) -> usize {
@@ -176,8 +175,8 @@ mod tests {
     use super::super::section::{CharacterSection, SectionId};
     use super::*;
 
-    fn create_library() -> Library {
-        Library::new(Box::new(|game| Box::new(CharacterSection::new(game))))
+    fn create_library() -> Library<CharacterSection> {
+        Library::new(Box::new(|game| CharacterSection::new(game)))
     }
 
     #[test]

@@ -35,9 +35,29 @@ pub struct CharacterSection {
     game_ids: Vec<GameId>,
 }
 
+impl Ord for CharacterSection {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.character.cmp(&other.character)
+    }
+}
+
+impl PartialOrd for CharacterSection {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for CharacterSection {
+    fn eq(&self, other: &Self) -> bool {
+        self.character == other.character
+    }
+}
+
+impl Eq for CharacterSection {}
+
 impl CharacterSection {
     pub fn new(game: &Game) -> Self {
-        let character = game.first_character();
+        let character = game.first_character().to_uppercase().next().unwrap();
         Self {
             id: SectionId::new(),
             character,
@@ -56,7 +76,8 @@ impl Section for CharacterSection {
     }
 
     fn accepts(&self, game: &Game) -> bool {
-        game.starts_with(self.character)
+        let game_char = game.first_character().to_uppercase().next().unwrap();
+        self.character == game_char
     }
 
     fn add_game(&mut self, game: &Game, games: &HashMap<GameId, Game>) -> Result<(), String> {
@@ -102,7 +123,7 @@ mod tests {
         let game = test_game("1", "Monkey Island", "monkey-island");
         let section = CharacterSection::new(&game);
 
-        assert_eq!(section.title(), "Section 'm'");
+        assert_eq!(section.title(), "Section 'M'");
     }
 
     #[test]
@@ -146,7 +167,7 @@ mod tests {
         let result = section.add_game(&game2, &games);
 
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "Game 'Zak McKracken' does not belong in Section 'm'");
+        assert_eq!(result.unwrap_err(), "Game 'Zak McKracken' does not belong in Section 'M'");
     }
 
     #[test]
@@ -168,5 +189,18 @@ mod tests {
         assert_eq!(section.game_ids[0], *game2.id());
         assert_eq!(section.game_ids[1], *game3.id());
         assert_eq!(section.game_ids[2], *game1.id());
+    }
+
+    #[test]
+    fn test_section_case_insensitive() {
+        let game_lower = test_game("1", "monkey island", "monkey-island");
+        let game_upper = test_game("2", "Maniac Mansion", "Maniac-Mansion");
+
+        let section_lower = CharacterSection::new(&game_lower);
+        let section_upper = CharacterSection::new(&game_upper);
+
+        assert!(section_lower.accepts(&game_upper));
+        assert!(section_upper.accepts(&game_lower));
+        assert_eq!(section_lower.cmp(&section_upper), std::cmp::Ordering::Equal);
     }
 }
