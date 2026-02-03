@@ -1,499 +1,583 @@
-use super::game::Game;
+use std::collections::HashMap;
+
+use super::cursor::Cursor;
+use super::game::{Game, GameId};
 use super::section::Section;
 
-pub struct Library<S: Section + Ord> {
-    sections: Vec<S>,
-    current_section_idx: usize,
+type SectionFactory = Box<dyn Fn(&Game) -> Box<dyn Section>>;
+
+const fn next_index(current: usize, len: usize) -> usize {
+    (current + 1) % len
 }
 
-impl<S: Section + Ord> Library<S> {
-    pub const fn new() -> Self {
+const fn previous_index(current: usize, len: usize) -> usize {
+    (current + len - 1) % len
+}
+
+pub struct Library {
+    games: HashMap<GameId, Game>,
+    sections: Vec<Box<dyn Section>>,
+    section_factory: SectionFactory,
+}
+
+impl Library {
+    pub fn new(section_factory: SectionFactory) -> Self {
         Self {
+            games: HashMap::new(),
             sections: Vec::new(),
-            current_section_idx: 0,
+            section_factory,
         }
     }
 
-    pub fn add_section(&mut self, section: S) {
-        self.sections.push(section);
-        self.sections.sort();
+    pub(super) fn get_game(&self, id: &GameId) -> &Game {
+        &self.games[id]
     }
 
-    pub fn next_section(&mut self) {
-        if !self.sections.is_empty() {
-            self.increment_current_section_idx();
-            self.current_section_mut().first();
-        }
+    pub fn add_game(&mut self, game: Game) {
+        let game_id = self.insert_game(game);
+        let section_index = self.ensure_section(&game_id);
+        self.categorise_game(section_index, &game_id);
     }
 
-    pub fn previous_section(&mut self) {
-        if !self.sections.is_empty() {
-            self.decrement_current_section_idx();
-            self.current_section_mut().first();
-        }
+    fn insert_game(&mut self, game: Game) -> GameId {
+        let game_id = game.id().clone();
+        self.games.insert(game_id.clone(), game);
+        game_id
     }
 
-    pub fn add_game(&mut self, game: &Game) {
-        for section in &mut self.sections {
-            if section.add(game) {
-                break;
-            }
-        }
+    fn ensure_section(&mut self, game_id: &GameId) -> usize {
+        self.find_section(game_id).unwrap_or_else(|| self.create_section(game_id))
     }
 
-    pub fn next_game(&mut self) {
-        if self.sections.is_empty() {
-            return;
-        }
-        let moved = self.current_section_mut().next();
-        if !moved {
-            self.increment_current_section_idx();
-            self.current_section_mut().first();
-        }
+    fn find_section(&self, game_id: &GameId) -> Option<usize> {
+        self.sections.iter().position(|section| section.accepts(&self.games[game_id]))
     }
 
-    pub fn previous_game(&mut self) {
-        if self.sections.is_empty() {
-            return;
-        }
-        let moved = self.current_section_mut().previous();
-        if !moved {
-            self.decrement_current_section_idx();
-            self.current_section_mut().last();
-        }
+    fn create_section(&mut self, game_id: &GameId) -> usize {
+        let new_section = (self.section_factory)(&self.games[game_id]);
+        self.sections.push(new_section);
+        self.sections.len() - 1
     }
 
-    pub fn jump(&mut self, game_id: &str) {
-        for (section_idx, section) in self.sections.iter_mut().enumerate() {
-            if section.jump(game_id) {
-                self.current_section_idx = section_idx;
-                return;
-            }
-        }
+    fn categorise_game(&mut self, section_index: usize, game_id: &GameId) {
+        self.sections[section_index].add_game(&self.games[game_id], &self.games).unwrap();
     }
 
-    pub fn with_current_game<F, R>(&self, f: F) -> Option<R>
-    where
-        F: FnOnce(&Game) -> R,
-    {
+    pub fn next_section(&self, cursor: &Cursor) -> Option<Cursor> {
         if self.sections.is_empty() {
             return None;
         }
-        self.current_section().with_current_game(f)
+
+        let next_section = self.get_next_section(cursor);
+        Cursor::first_game(next_section)
     }
 
-    pub fn with_games<F>(&mut self, offset: isize, size: usize, mut visitor: F)
-    where
-        F: FnMut(&Game),
-    {
+    pub fn previous_section(&self, cursor: &Cursor) -> Option<Cursor> {
         if self.sections.is_empty() {
-            return;
+            return None;
         }
 
-        for _ in 0..offset.unsigned_abs() {
-            self.previous_game();
+        let prev_section = self.get_previous_section(cursor);
+        Cursor::first_game(prev_section)
+    }
+
+    pub fn next_game(&self, cursor: &Cursor) -> Option<Cursor> {
+        if self.sections.is_empty() {
+            return None;
+        }
+        let current_section = self.get_current_section(cursor);
+
+        if let Some(next_game_id) = current_section.next_game_id(cursor.game_id()) {
+            return Some(Cursor::for_game(current_section, next_game_id));
         }
 
-        for _ in 0..size {
-            self.with_current_game(|game| visitor(game));
-            self.next_game();
+        let next_section = self.get_next_section(cursor);
+        Cursor::first_game(next_section)
+    }
+
+    pub fn previous_game(&self, cursor: &Cursor) -> Option<Cursor> {
+        if self.sections.is_empty() {
+            return None;
         }
+        let current_section = self.get_current_section(cursor);
+
+        if let Some(prev_game_id) = current_section.previous_game_id(cursor.game_id()) {
+            return Some(Cursor::for_game(current_section, prev_game_id));
+        }
+
+        let prev_section = self.get_previous_section(cursor);
+        Cursor::last_game(prev_section)
     }
 
-    const fn increment_current_section_idx(&mut self) {
-        self.current_section_idx = (self.current_section_idx + 1) % self.sections.len();
+    fn get_current_section(&self, cursor: &Cursor) -> &dyn Section {
+        let current_section_index = self.find_section_index(cursor);
+        self.sections[current_section_index].as_ref()
     }
 
-    const fn decrement_current_section_idx(&mut self) {
-        self.current_section_idx =
-            (self.current_section_idx + self.sections.len() - 1) % self.sections.len();
+    fn get_next_section(&self, cursor: &Cursor) -> &dyn Section {
+        let current_section_index = self.find_section_index(cursor);
+        let next_section_index = next_index(current_section_index, self.sections.len());
+        self.sections[next_section_index].as_ref()
     }
 
-    fn current_section(&self) -> &S {
-        &self.sections[self.current_section_idx]
+    fn get_previous_section(&self, cursor: &Cursor) -> &dyn Section {
+        let current_section_index = self.find_section_index(cursor);
+        let prev_section_index = previous_index(current_section_index, self.sections.len());
+        self.sections[prev_section_index].as_ref()
     }
 
-    fn current_section_mut(&mut self) -> &mut S {
-        &mut self.sections[self.current_section_idx]
+    fn find_section_index(&self, cursor: &Cursor) -> usize {
+        self.sections.iter().position(|section| section.id() == cursor.section_id()).unwrap()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::character_section::CharacterSection;
-    use super::super::test_utils::test_game;
+    use super::super::game::test_game;
+    use super::super::section::{CharacterSection, SectionId};
     use super::*;
 
-    #[test]
-    fn test_next_section_moves_forward() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-        let mut section_b = CharacterSection::new('b');
-
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_b.add(&test_game("b1", "Banana", "banana"));
-
-        library.add_section(section_a);
-        library.add_section(section_b);
-
-        let title =
-            library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
-
-        library.next_section();
-        let title =
-            library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Banana".to_string()));
+    fn create_library() -> Library {
+        Library::new(Box::new(|game| Box::new(CharacterSection::new(game))))
     }
 
     #[test]
-    fn test_next_section_wraps_to_start() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-        let mut section_b = CharacterSection::new('b');
+    fn test_add_game_to_empty_library() {
+        let mut library = create_library();
+        let game = test_game("1", "Monkey Island", "monkey-island");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_b.add(&test_game("b1", "Banana", "banana"));
+        library.add_game(game.clone());
 
-        library.add_section(section_a);
-        library.add_section(section_b);
+        assert_eq!(library.games.len(), 1);
+        assert_eq!(library.sections.len(), 1);
+        assert!(library.games.contains_key(game.id()));
+    }
 
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+    #[test]
+    fn test_add_game_to_new_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Monkey Island", "monkey-island");
+        let game2 = test_game("2", "Zak McKracken", "zak-mckracken");
 
-        library.next_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Banana".to_string()));
+        library.add_game(game1);
+        library.add_game(game2);
 
-        library.next_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        assert_eq!(library.games.len(), 2);
+        assert_eq!(library.sections.len(), 2);
+    }
+
+    #[test]
+    fn test_add_game_to_existing_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Monkey Island", "monkey-island");
+        let game2 = test_game("2", "Maniac Mansion", "maniac-mansion");
+
+        library.add_game(game1);
+        library.add_game(game2);
+
+        assert_eq!(library.games.len(), 2);
+        assert_eq!(library.sections.len(), 1);
+    }
+
+    #[test]
+    fn test_add_game_with_duplicate_title() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Monkey Island", "monkey-island");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
+
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+
+        assert_eq!(library.games.len(), 2);
+        assert!(library.games.contains_key(game1.id()));
+        assert!(library.games.contains_key(game2.id()));
     }
 
     #[test]
     fn test_next_section_empty_library() {
-        let mut library: Library<CharacterSection> = Library::new();
+        let library = create_library();
+        let cursor = Cursor::new(SectionId::new(), GameId::new("1".to_string()));
 
-        library.next_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, None);
+        let result = library.next_section(&cursor);
+
+        assert!(result.is_none());
     }
 
     #[test]
-    fn test_previous_section_moves_backward() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-        let mut section_b = CharacterSection::new('b');
+    fn test_next_section_single_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Monkey Island", "monkey-island");
+        let game2 = test_game("2", "Maniac Mansion", "maniac-mansion");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_b.add(&test_game("b1", "Banana", "banana"));
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
 
-        library.add_section(section_a);
-        library.add_section(section_b);
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game1.id().clone());
 
-        library.next_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Banana".to_string()));
+        let result = library.next_section(&cursor);
 
-        library.previous_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        assert!(result.is_some());
+        let next_cursor = result.unwrap();
+        assert_eq!(next_cursor.section_id(), library.sections[0].id());
+        assert_eq!(next_cursor.game_id(), game2.id());
     }
 
     #[test]
-    fn test_previous_section_wraps_to_end() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-        let mut section_b = CharacterSection::new('b');
+    fn test_next_section_two_sections_no_wrap() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice in Wonderland", "alice-in-wonderland");
+        let game2 = test_game("2", "Another World", "another-world");
+        let game3 = test_game("3", "Bubble Bobble", "bubble-bobble");
+        let game4 = test_game("4", "Boulder Dash", "boulder-dash");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_b.add(&test_game("b1", "Banana", "banana"));
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+        library.add_game(game3.clone());
+        library.add_game(game4.clone());
 
-        library.add_section(section_a);
-        library.add_section(section_b);
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game1.id().clone());
 
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        let result = library.next_section(&cursor);
 
-        library.previous_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Banana".to_string()));
+        assert!(result.is_some());
+        let next_cursor = result.unwrap();
+        assert_eq!(next_cursor.section_id(), library.sections[1].id());
+        assert_eq!(next_cursor.game_id(), game4.id());
+    }
 
-        library.previous_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+    #[test]
+    fn test_next_section_two_sections_with_wrap() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice in Wonderland", "alice-in-wonderland");
+        let game2 = test_game("2", "Another World", "another-world");
+        let game3 = test_game("3", "Bubble Bobble", "bubble-bobble");
+        let game4 = test_game("4", "Boulder Dash", "boulder-dash");
+
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+        library.add_game(game3.clone());
+        library.add_game(game4.clone());
+
+        let section_id = library.sections[1].id().clone();
+        let cursor = Cursor::new(section_id, game3.id().clone());
+
+        let result = library.next_section(&cursor);
+
+        assert!(result.is_some());
+        let next_cursor = result.unwrap();
+        assert_eq!(next_cursor.section_id(), library.sections[0].id());
+        assert_eq!(next_cursor.game_id(), game1.id());
     }
 
     #[test]
     fn test_previous_section_empty_library() {
-        let mut library: Library<CharacterSection> = Library::new();
+        let library = create_library();
+        let cursor = Cursor::new(SectionId::new(), GameId::new("1".to_string()));
 
-        library.previous_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, None);
+        let result = library.previous_section(&cursor);
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_previous_section_single_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Monkey Island", "monkey-island");
+        let game2 = test_game("2", "Maniac Mansion", "maniac-mansion");
+
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game1.id().clone());
+
+        let result = library.previous_section(&cursor);
+
+        assert!(result.is_some());
+        let prev_cursor = result.unwrap();
+        assert_eq!(prev_cursor.section_id(), library.sections[0].id());
+        assert_eq!(prev_cursor.game_id(), game2.id());
+    }
+
+    #[test]
+    fn test_previous_section_two_sections_no_wrap() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice in Wonderland", "alice-in-wonderland");
+        let game2 = test_game("2", "Another World", "another-world");
+        let game3 = test_game("3", "Bubble Bobble", "bubble-bobble");
+        let game4 = test_game("4", "Boulder Dash", "boulder-dash");
+
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+        library.add_game(game3.clone());
+        library.add_game(game4.clone());
+
+        let section_id = library.sections[1].id().clone();
+        let cursor = Cursor::new(section_id, game3.id().clone());
+
+        let result = library.previous_section(&cursor);
+
+        assert!(result.is_some());
+        let prev_cursor = result.unwrap();
+        assert_eq!(prev_cursor.section_id(), library.sections[0].id());
+        assert_eq!(prev_cursor.game_id(), game1.id());
+    }
+
+    #[test]
+    fn test_previous_section_two_sections_with_wrap() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice in Wonderland", "alice-in-wonderland");
+        let game2 = test_game("2", "Another World", "another-world");
+        let game3 = test_game("3", "Bubble Bobble", "bubble-bobble");
+        let game4 = test_game("4", "Boulder Dash", "boulder-dash");
+
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+        library.add_game(game3.clone());
+        library.add_game(game4.clone());
+
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game1.id().clone());
+
+        let result = library.previous_section(&cursor);
+
+        assert!(result.is_some());
+        let prev_cursor = result.unwrap();
+        assert_eq!(prev_cursor.section_id(), library.sections[1].id());
+        assert_eq!(prev_cursor.game_id(), game4.id());
     }
 
     #[test]
     fn test_next_game_empty_library() {
-        let mut library: Library<CharacterSection> = Library::new();
-        library.next_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, None);
+        let library = create_library();
+        let cursor = Cursor::new(SectionId::new(), GameId::new("1".to_string()));
+
+        let result = library.next_game(&cursor);
+
+        assert!(result.is_none());
     }
 
     #[test]
-    fn test_next_game_moves_within_section() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
+    fn test_next_game_single_game() {
+        let mut library = create_library();
+        let game = test_game("1", "Monkey Island", "monkey-island");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_a.add(&test_game("a2", "Aardvark", "aardvark"));
-        section_a.add(&test_game("a3", "Ant", "ant"));
+        library.add_game(game.clone());
 
-        library.add_section(section_a);
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game.id().clone());
 
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Aardvark".to_string()));
+        let result = library.next_game(&cursor);
 
-        library.next_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Ant".to_string()));
-
-        library.next_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        assert!(result.is_some());
+        let next_cursor = result.unwrap();
+        assert_eq!(next_cursor.section_id(), library.sections[0].id());
+        assert_eq!(next_cursor.game_id(), game.id());
     }
 
     #[test]
-    fn test_next_game_moves_to_next_section() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-        let mut section_b = CharacterSection::new('b');
+    fn test_next_game_first_of_two_in_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Maniac Mansion", "maniac-mansion");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_a.add(&test_game("a3", "Ant", "ant"));
-        section_b.add(&test_game("b1", "Banana", "banana"));
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
 
-        library.add_section(section_a);
-        library.add_section(section_b);
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game1.id().clone());
 
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Ant".to_string()));
+        let result = library.next_game(&cursor);
 
-        library.next_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
-
-        library.next_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Banana".to_string()));
+        assert!(result.is_some());
+        let next_cursor = result.unwrap();
+        assert_eq!(next_cursor.section_id(), library.sections[0].id());
+        assert_eq!(next_cursor.game_id(), game2.id());
     }
 
     #[test]
-    fn test_next_game_wraps_from_last_section_to_first() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-        let mut section_b = CharacterSection::new('b');
+    fn test_next_game_last_in_single_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Maniac Mansion", "maniac-mansion");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_b.add(&test_game("b1", "Banana", "banana"));
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
 
-        library.add_section(section_a);
-        library.add_section(section_b);
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game2.id().clone());
 
-        library.next_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Banana".to_string()));
+        let result = library.next_game(&cursor);
 
-        library.next_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        assert!(result.is_some());
+        let next_cursor = result.unwrap();
+        assert_eq!(next_cursor.section_id(), library.sections[0].id());
+        assert_eq!(next_cursor.game_id(), game1.id());
+    }
+
+    #[test]
+    fn test_next_game_last_in_section_with_next_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice in Wonderland", "alice-in-wonderland");
+        let game2 = test_game("2", "Another World", "another-world");
+        let game3 = test_game("3", "Bubble Bobble", "bubble-bobble");
+        let game4 = test_game("4", "Boulder Dash", "boulder-dash");
+
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+        library.add_game(game3.clone());
+        library.add_game(game4.clone());
+
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game2.id().clone());
+
+        let result = library.next_game(&cursor);
+
+        assert!(result.is_some());
+        let next_cursor = result.unwrap();
+        assert_eq!(next_cursor.section_id(), library.sections[1].id());
+        assert_eq!(next_cursor.game_id(), game4.id());
+    }
+
+    #[test]
+    fn test_next_game_last_in_last_section_wraps() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice in Wonderland", "alice-in-wonderland");
+        let game2 = test_game("2", "Another World", "another-world");
+        let game3 = test_game("3", "Bubble Bobble", "bubble-bobble");
+        let game4 = test_game("4", "Boulder Dash", "boulder-dash");
+
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+        library.add_game(game3.clone());
+        library.add_game(game4.clone());
+
+        let section_id = library.sections[1].id().clone();
+        let cursor = Cursor::new(section_id, game3.id().clone());
+
+        let result = library.next_game(&cursor);
+
+        assert!(result.is_some());
+        let next_cursor = result.unwrap();
+        assert_eq!(next_cursor.section_id(), library.sections[0].id());
+        assert_eq!(next_cursor.game_id(), game1.id());
     }
 
     #[test]
     fn test_previous_game_empty_library() {
-        let mut library: Library<CharacterSection> = Library::new();
-        library.previous_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, None);
+        let library = create_library();
+        let cursor = Cursor::new(SectionId::new(), GameId::new("1".to_string()));
+
+        let result = library.previous_game(&cursor);
+
+        assert!(result.is_none());
     }
 
     #[test]
-    fn test_previous_game_moves_within_section() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
+    fn test_previous_game_single_game() {
+        let mut library = create_library();
+        let game = test_game("1", "Monkey Island", "monkey-island");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_a.add(&test_game("a2", "Aardvark", "aardvark"));
-        section_a.add(&test_game("a3", "Ant", "ant"));
+        library.add_game(game.clone());
 
-        library.add_section(section_a);
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game.id().clone());
 
-        library.next_game();
-        library.next_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        let result = library.previous_game(&cursor);
 
-        library.previous_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Ant".to_string()));
-
-        library.previous_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Aardvark".to_string()));
+        assert!(result.is_some());
+        let prev_cursor = result.unwrap();
+        assert_eq!(prev_cursor.section_id(), library.sections[0].id());
+        assert_eq!(prev_cursor.game_id(), game.id());
     }
 
     #[test]
-    fn test_previous_game_moves_to_previous_section() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-        let mut section_b = CharacterSection::new('b');
+    fn test_previous_game_second_of_two_in_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Maniac Mansion", "maniac-mansion");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_a.add(&test_game("a3", "Ant", "ant"));
-        section_b.add(&test_game("b1", "Banana", "banana"));
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
 
-        library.add_section(section_a);
-        library.add_section(section_b);
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game2.id().clone());
 
-        library.next_section();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Banana".to_string()));
+        let result = library.previous_game(&cursor);
 
-        library.previous_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        assert!(result.is_some());
+        let prev_cursor = result.unwrap();
+        assert_eq!(prev_cursor.section_id(), library.sections[0].id());
+        assert_eq!(prev_cursor.game_id(), game1.id());
     }
 
     #[test]
-    fn test_previous_game_wraps_from_first_section_to_last() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-        let mut section_b = CharacterSection::new('b');
+    fn test_previous_game_first_in_single_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Maniac Mansion", "maniac-mansion");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_b.add(&test_game("b1", "Banana", "banana"));
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
 
-        library.add_section(section_a);
-        library.add_section(section_b);
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game1.id().clone());
 
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        let result = library.previous_game(&cursor);
 
-        library.previous_game();
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Banana".to_string()));
+        assert!(result.is_some());
+        let prev_cursor = result.unwrap();
+        assert_eq!(prev_cursor.section_id(), library.sections[0].id());
+        assert_eq!(prev_cursor.game_id(), game2.id());
     }
 
     #[test]
-    fn test_jump_to_game_in_same_section() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
+    fn test_previous_game_first_in_section_with_previous_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice in Wonderland", "alice-in-wonderland");
+        let game2 = test_game("2", "Another World", "another-world");
+        let game3 = test_game("3", "Bubble Bobble", "bubble-bobble");
+        let game4 = test_game("4", "Boulder Dash", "boulder-dash");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_a.add(&test_game("a2", "Ant", "ant"));
-        section_a.add(&test_game("a3", "Aardvark", "aardvark"));
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+        library.add_game(game3.clone());
+        library.add_game(game4.clone());
 
-        library.add_section(section_a);
+        let section_id = library.sections[1].id().clone();
+        let cursor = Cursor::new(section_id, game4.id().clone());
 
-        library.jump("a1");
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        let result = library.previous_game(&cursor);
+
+        assert!(result.is_some());
+        let prev_cursor = result.unwrap();
+        assert_eq!(prev_cursor.section_id(), library.sections[0].id());
+        assert_eq!(prev_cursor.game_id(), game2.id());
     }
 
     #[test]
-    fn test_jump_to_game_in_different_section() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-        let mut section_b = CharacterSection::new('b');
+    fn test_previous_game_first_in_first_section_wraps() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice in Wonderland", "alice-in-wonderland");
+        let game2 = test_game("2", "Another World", "another-world");
+        let game3 = test_game("3", "Bubble Bobble", "bubble-bobble");
+        let game4 = test_game("4", "Boulder Dash", "boulder-dash");
 
-        section_a.add(&test_game("a1", "Apple", "apple"));
-        section_b.add(&test_game("b1", "Banana", "banana"));
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+        library.add_game(game3.clone());
+        library.add_game(game4.clone());
 
-        library.add_section(section_a);
-        library.add_section(section_b);
+        let section_id = library.sections[0].id().clone();
+        let cursor = Cursor::new(section_id, game1.id().clone());
 
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
+        let result = library.previous_game(&cursor);
 
-        library.jump("b1");
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Banana".to_string()));
-    }
-
-    #[test]
-    fn test_jump_to_nonexistent_game() {
-        let mut library: Library<CharacterSection> = Library::new();
-        let mut section_a = CharacterSection::new('a');
-
-        section_a.add(&test_game("a1", "Apple", "apple"));
-
-        library.add_section(section_a);
-
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
-
-        library.jump("nonexistent");
-        let title = library.with_current_game(|game| game.visit(|title, _, _, _| title.to_string()));
-        assert_eq!(title, Some("Apple".to_string()));
-    }
-
-    #[test]
-    fn test_with_games_window() {
-        let mut library: Library<CharacterSection> = Library::new();
-        library.add_section(CharacterSection::new('a'));
-        library.add_section(CharacterSection::new('b'));
-
-        library.add_game(&test_game("a1", "Apple", "apple"));
-        library.add_game(&test_game("a2", "Ant", "ant"));
-        library.add_game(&test_game("a3", "Aardvark", "aardvark"));
-        library.add_game(&test_game("b1", "Banana", "banana"));
-        library.add_game(&test_game("b2", "Berry", "berry"));
-
-        library.next_game();
-        library.next_game();
-
-        let mut titles = Vec::new();
-        library.with_games(-1, 3, |game| {
-            game.visit(|title, _, _, _| titles.push(title.to_string()));
-        });
-
-        assert_eq!(titles.len(), 3);
-        assert_eq!(titles[0], "Ant");
-        assert_eq!(titles[1], "Apple");
-        assert_eq!(titles[2], "Banana");
-    }
-
-    #[test]
-    fn test_with_games_empty_library() {
-        let mut library: Library<CharacterSection> = Library::new();
-
-        let mut count = 0;
-        library.with_games(-2, 5, |_game| {
-            count += 1;
-        });
-
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn test_with_games_fewer_than_size() {
-        let mut library: Library<CharacterSection> = Library::new();
-        library.add_section(CharacterSection::new('a'));
-
-        library.add_game(&test_game("a1", "Apple", "apple"));
-        library.add_game(&test_game("a2", "Ant", "ant"));
-
-        let mut titles = Vec::new();
-        library.with_games(-1, 5, |game| {
-            game.visit(|title, _, _, _| titles.push(title.to_string()));
-        });
-
-        assert_eq!(titles.len(), 5);
-        assert_eq!(titles[0], "Ant");
-        assert_eq!(titles[1], "Apple");
-        assert_eq!(titles[2], "Ant");
-        assert_eq!(titles[3], "Apple");
-        assert_eq!(titles[4], "Ant");
+        assert!(result.is_some());
+        let prev_cursor = result.unwrap();
+        assert_eq!(prev_cursor.section_id(), library.sections[1].id());
+        assert_eq!(prev_cursor.game_id(), game3.id());
     }
 }

@@ -1,8 +1,18 @@
 use std::cmp::Ordering;
+use std::hash::Hash;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct GameId(String);
+
+impl GameId {
+    pub const fn new(id: String) -> Self {
+        Self(id)
+    }
+}
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Game {
-    id: String,
+    id: GameId,
     title: String,
     sort_key: String,
     year: Option<u16>,
@@ -11,14 +21,7 @@ pub struct Game {
 }
 
 impl Game {
-    pub const fn new(
-        id: String,
-        title: String,
-        sort_key: String,
-        year: Option<u16>,
-        publisher: Option<String>,
-        notes: Option<String>,
-    ) -> Self {
+    pub const fn new(id: GameId, title: String, sort_key: String, year: Option<u16>, publisher: Option<String>, notes: Option<String>) -> Self {
         Self {
             id,
             title,
@@ -33,16 +36,19 @@ impl Game {
     where
         F: FnOnce(&str, Option<u16>, Option<&str>, Option<&str>) -> R,
     {
-        visitor(
-            &self.title,
-            self.year,
-            self.publisher.as_deref(),
-            self.notes.as_deref(),
-        )
+        visitor(&self.title, self.year, self.publisher.as_deref(), self.notes.as_deref())
     }
 
-    pub fn has_id(&self, game_id: &str) -> bool {
-        self.id == game_id
+    pub const fn id(&self) -> &GameId {
+        &self.id
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn first_character(&self) -> char {
+        self.sort_key.chars().next().unwrap_or(' ')
     }
 
     pub fn starts_with(&self, c: char) -> bool {
@@ -63,19 +69,13 @@ impl PartialOrd for Game {
 }
 
 #[cfg(test)]
+pub(super) fn test_game(id: &str, title: &str, sort_key: &str) -> Game {
+    Game::new(GameId::new(id.to_string()), title.to_string(), sort_key.to_string(), None, None, None)
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-
-    fn test_game(id: &str, title: &str, sort_key: &str) -> Game {
-        Game::new(
-            id.to_string(),
-            title.to_string(),
-            sort_key.to_string(),
-            None,
-            None,
-            None,
-        )
-    }
 
     #[test]
     fn test_games_sorted_by_sort_key() {
@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn test_visitor_with_all_fields() {
         let game = Game::new(
-            "1".to_string(),
+            GameId::new("1".to_string()),
             "Monkey Island".to_string(),
             "monkey-island".to_string(),
             Some(1990),
