@@ -164,6 +164,11 @@ impl<S: Section + Ord> Library<S> {
         &self.sections[prev_section_index]
     }
 
+    pub fn to_section(&self, value: &str) -> Option<Cursor> {
+        let section = self.sections.iter().find(|s| s.satisfies(value))?;
+        Cursor::first_game(section)
+    }
+
     fn find_section_index(&self, cursor: &Cursor) -> usize {
         self.sections.iter().position(|section| section.id() == cursor.section_id()).unwrap()
     }
@@ -885,5 +890,59 @@ mod tests {
         let next2 = library.next_section(&next).unwrap();
         assert_eq!(next2.section_id(), library.sections[2].id());
         assert_eq!(next2.game_id(), game_z.id());
+    }
+
+    #[test]
+    fn test_to_section_finds_existing_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice", "alice");
+        let game2 = test_game("2", "Another", "another");
+        let game3 = test_game("3", "Monkey Island", "monkey-island");
+
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+        library.add_game(game3.clone());
+
+        let cursor = library.to_section("M").unwrap();
+
+        assert_eq!(cursor.section_id(), library.sections[1].id());
+        assert_eq!(cursor.game_id(), game3.id());
+    }
+
+    #[test]
+    fn test_to_section_case_insensitive() {
+        let mut library = create_library();
+        let game = test_game("1", "Monkey Island", "monkey-island");
+
+        library.add_game(game.clone());
+
+        let cursor_upper = library.to_section("M");
+        let cursor_lower = library.to_section("m");
+
+        assert!(cursor_upper.is_some());
+        assert!(cursor_lower.is_some());
+        assert_eq!(cursor_upper.unwrap().game_id(), game.id());
+        assert_eq!(cursor_lower.unwrap().game_id(), game.id());
+    }
+
+    #[test]
+    fn test_to_section_nonexistent_section() {
+        let mut library = create_library();
+        let game = test_game("1", "Monkey Island", "monkey-island");
+
+        library.add_game(game);
+
+        let cursor = library.to_section("Z");
+
+        assert!(cursor.is_none());
+    }
+
+    #[test]
+    fn test_to_section_empty_library() {
+        let library = create_library();
+
+        let cursor = library.to_section("M");
+
+        assert!(cursor.is_none());
     }
 }

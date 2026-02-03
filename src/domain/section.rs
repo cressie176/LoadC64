@@ -21,6 +21,7 @@ fn natural_game_order(a: &GameId, b: &GameId, games: &HashMap<GameId, Game>) -> 
 pub trait Section {
     fn id(&self) -> &SectionId;
     fn title(&self) -> String;
+    fn satisfies(&self, key: &str) -> bool;
     fn accepts(&self, game: &Game) -> bool;
     fn add_game(&mut self, game: &Game, games: &HashMap<GameId, Game>) -> Result<(), String>;
     fn first_game_id(&self) -> Option<&GameId>;
@@ -73,6 +74,10 @@ impl Section for CharacterSection {
 
     fn title(&self) -> String {
         format!("Section '{}'", self.character)
+    }
+
+    fn satisfies(&self, s: &str) -> bool {
+        s.chars().next().is_some_and(|first_char| self.character == first_char.to_uppercase().next().unwrap())
     }
 
     fn accepts(&self, game: &Game) -> bool {
