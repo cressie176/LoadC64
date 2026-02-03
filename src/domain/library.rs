@@ -860,4 +860,30 @@ mod tests {
         assert_eq!(window[1], *game3.id());
         assert_eq!(window[2], *game1.id());
     }
+
+    #[test]
+    fn test_sections_sorted_after_creation() {
+        let mut library = create_library();
+        let game_m = test_game("1", "Monkey Island", "monkey-island");
+        let game_z = test_game("2", "Zak McKracken", "zak-mckracken");
+        let game_a = test_game("3", "Another World", "another-world");
+
+        library.add_game(game_m.clone());
+        library.add_game(game_z.clone());
+        library.add_game(game_a.clone());
+
+        assert_eq!(library.sections.len(), 3);
+        assert_eq!(library.sections[0].title(), "Section 'A'");
+        assert_eq!(library.sections[1].title(), "Section 'M'");
+        assert_eq!(library.sections[2].title(), "Section 'Z'");
+
+        let cursor = Cursor::new(library.sections[0].id().clone(), game_a.id().clone());
+        let next = library.next_section(&cursor).unwrap();
+        assert_eq!(next.section_id(), library.sections[1].id());
+        assert_eq!(next.game_id(), game_m.id());
+
+        let next2 = library.next_section(&next).unwrap();
+        assert_eq!(next2.section_id(), library.sections[2].id());
+        assert_eq!(next2.game_id(), game_z.id());
+    }
 }
