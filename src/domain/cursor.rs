@@ -1,6 +1,7 @@
 use super::game::GameId;
 use super::section::{Section, SectionId};
 
+#[derive(Clone)]
 pub struct Cursor {
     section_id: SectionId,
     game_id: GameId,
