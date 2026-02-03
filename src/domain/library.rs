@@ -169,6 +169,12 @@ impl<S: Section + Ord> Library<S> {
         Cursor::first_game(section)
     }
 
+    pub fn to_game(&self, game_id: &GameId) -> Option<Cursor> {
+        let game = self.games.get(game_id)?;
+        let section = self.sections.iter().find(|s| s.accepts(game))?;
+        Some(Cursor::for_game(section, game_id))
+    }
+
     fn find_section_index(&self, cursor: &Cursor) -> usize {
         self.sections.iter().position(|section| section.id() == cursor.section_id()).unwrap()
     }
@@ -942,6 +948,44 @@ mod tests {
         let library = create_library();
 
         let cursor = library.to_section("M");
+
+        assert!(cursor.is_none());
+    }
+
+    #[test]
+    fn test_to_game_finds_existing_game() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Alice", "alice");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
+
+        library.add_game(game1.clone());
+        library.add_game(game2.clone());
+
+        let cursor = library.to_game(game2.id()).unwrap();
+
+        assert_eq!(cursor.section_id(), library.sections[1].id());
+        assert_eq!(cursor.game_id(), game2.id());
+    }
+
+    #[test]
+    fn test_to_game_nonexistent_game() {
+        let mut library = create_library();
+        let game = test_game("1", "Monkey Island", "monkey-island");
+
+        library.add_game(game);
+
+        let nonexistent_id = GameId::new("999".to_string());
+        let cursor = library.to_game(&nonexistent_id);
+
+        assert!(cursor.is_none());
+    }
+
+    #[test]
+    fn test_to_game_empty_library() {
+        let library = create_library();
+        let game_id = GameId::new("1".to_string());
+
+        let cursor = library.to_game(&game_id);
 
         assert!(cursor.is_none());
     }
