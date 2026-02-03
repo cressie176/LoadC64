@@ -27,8 +27,9 @@ impl<S: Section + Ord> Library<S> {
         }
     }
 
-    pub(super) fn get_game(&self, id: &GameId) -> &Game {
-        &self.games[id]
+    pub fn get_cursor(&self) -> Option<Cursor> {
+        let first_section = self.sections.first()?;
+        Cursor::first_game(first_section)
     }
 
     pub fn add_game(&mut self, game: Game) {
@@ -80,6 +81,11 @@ impl<S: Section + Ord> Library<S> {
         Cursor::first_game(prev_section)
     }
 
+    pub fn to_section(&self, value: &str) -> Option<Cursor> {
+        let section = self.sections.iter().find(|s| s.satisfies(value))?;
+        Cursor::first_game(section)
+    }
+
     pub fn next_game(&self, cursor: &Cursor) -> Option<Cursor> {
         if self.sections.is_empty() {
             return None;
@@ -108,17 +114,27 @@ impl<S: Section + Ord> Library<S> {
         Cursor::last_game(prev_section)
     }
 
-    pub fn get_game_window(&self, cursor: &Cursor, offset: i32, count: usize) -> Option<Vec<GameId>> {
+    pub fn to_game(&self, game_id: &GameId) -> Option<Cursor> {
+        let game = self.games.get(game_id)?;
+        let section = self.sections.iter().find(|s| s.accepts(game))?;
+        Some(Cursor::for_game(section, game_id))
+    }
+
+    fn get_game(&self, id: &GameId) -> &Game {
+        &self.games[id]
+    }
+
+    pub fn get_game_window(&self, cursor: &Cursor, offset: i32, count: usize) -> Option<Vec<&Game>> {
         if self.sections.is_empty() {
             return None;
         }
         let start_cursor = self.iterate_backwards(cursor, offset.abs(), |_| {})?;
 
         let mut games = Vec::with_capacity(count);
-        games.push(start_cursor.game_id().clone());
+        games.push(self.get_game(start_cursor.game_id()));
 
         self.iterate_forwards(&start_cursor, count - 1, |game_id| {
-            games.push(game_id.clone());
+            games.push(self.get_game(game_id));
         });
 
         Some(games)
@@ -162,17 +178,6 @@ impl<S: Section + Ord> Library<S> {
         let current_section_index = self.find_section_index(cursor);
         let prev_section_index = previous_index(current_section_index, self.sections.len());
         &self.sections[prev_section_index]
-    }
-
-    pub fn to_section(&self, value: &str) -> Option<Cursor> {
-        let section = self.sections.iter().find(|s| s.satisfies(value))?;
-        Cursor::first_game(section)
-    }
-
-    pub fn to_game(&self, game_id: &GameId) -> Option<Cursor> {
-        let game = self.games.get(game_id)?;
-        let section = self.sections.iter().find(|s| s.accepts(game))?;
-        Some(Cursor::for_game(section, game_id))
     }
 
     fn find_section_index(&self, cursor: &Cursor) -> usize {
@@ -653,9 +658,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game1.id());
-        assert_eq!(window[1], *game1.id());
-        assert_eq!(window[2], *game1.id());
+        assert_eq!(window[0].id(), game1.id());
+        assert_eq!(window[1].id(), game1.id());
+        assert_eq!(window[2].id(), game1.id());
     }
 
     #[test]
@@ -673,9 +678,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game2.id());
-        assert_eq!(window[1], *game1.id());
-        assert_eq!(window[2], *game2.id());
+        assert_eq!(window[0].id(), game2.id());
+        assert_eq!(window[1].id(), game1.id());
+        assert_eq!(window[2].id(), game2.id());
     }
 
     #[test]
@@ -693,9 +698,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game1.id());
-        assert_eq!(window[1], *game2.id());
-        assert_eq!(window[2], *game1.id());
+        assert_eq!(window[0].id(), game1.id());
+        assert_eq!(window[1].id(), game2.id());
+        assert_eq!(window[2].id(), game1.id());
     }
 
     #[test]
@@ -719,9 +724,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game5.id());
-        assert_eq!(window[1], *game1.id());
-        assert_eq!(window[2], *game2.id());
+        assert_eq!(window[0].id(), game5.id());
+        assert_eq!(window[1].id(), game1.id());
+        assert_eq!(window[2].id(), game2.id());
     }
 
     #[test]
@@ -745,9 +750,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game2.id());
-        assert_eq!(window[1], *game3.id());
-        assert_eq!(window[2], *game4.id());
+        assert_eq!(window[0].id(), game2.id());
+        assert_eq!(window[1].id(), game3.id());
+        assert_eq!(window[2].id(), game4.id());
     }
 
     #[test]
@@ -771,9 +776,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game4.id());
-        assert_eq!(window[1], *game5.id());
-        assert_eq!(window[2], *game1.id());
+        assert_eq!(window[0].id(), game4.id());
+        assert_eq!(window[1].id(), game5.id());
+        assert_eq!(window[2].id(), game1.id());
     }
 
     #[test]
@@ -795,9 +800,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game3.id());
-        assert_eq!(window[1], *game1.id());
-        assert_eq!(window[2], *game2.id());
+        assert_eq!(window[0].id(), game3.id());
+        assert_eq!(window[1].id(), game1.id());
+        assert_eq!(window[2].id(), game2.id());
     }
 
     #[test]
@@ -819,9 +824,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game1.id());
-        assert_eq!(window[1], *game2.id());
-        assert_eq!(window[2], *game4.id());
+        assert_eq!(window[0].id(), game1.id());
+        assert_eq!(window[1].id(), game2.id());
+        assert_eq!(window[2].id(), game4.id());
     }
 
     #[test]
@@ -843,9 +848,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game2.id());
-        assert_eq!(window[1], *game4.id());
-        assert_eq!(window[2], *game3.id());
+        assert_eq!(window[0].id(), game2.id());
+        assert_eq!(window[1].id(), game4.id());
+        assert_eq!(window[2].id(), game3.id());
     }
 
     #[test]
@@ -867,9 +872,9 @@ mod tests {
         let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
-        assert_eq!(window[0], *game4.id());
-        assert_eq!(window[1], *game3.id());
-        assert_eq!(window[2], *game1.id());
+        assert_eq!(window[0].id(), game4.id());
+        assert_eq!(window[1].id(), game3.id());
+        assert_eq!(window[2].id(), game1.id());
     }
 
     #[test]
@@ -988,5 +993,59 @@ mod tests {
         let cursor = library.to_game(&game_id);
 
         assert!(cursor.is_none());
+    }
+
+    #[test]
+    fn test_get_cursor_empty_library() {
+        let library = create_library();
+
+        let cursor = library.get_cursor();
+
+        assert!(cursor.is_none());
+    }
+
+    #[test]
+    fn test_get_cursor_single_game() {
+        let mut library = create_library();
+        let game = test_game("1", "Monkey Island", "monkey-island");
+
+        library.add_game(game.clone());
+
+        let cursor = library.get_cursor().unwrap();
+
+        assert_eq!(cursor.section_id(), library.sections[0].id());
+        assert_eq!(cursor.game_id(), game.id());
+    }
+
+    #[test]
+    fn test_get_cursor_multiple_games_single_section() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Maniac Mansion", "maniac-mansion");
+        let game2 = test_game("2", "Monkey Island", "monkey-island");
+
+        library.add_game(game1.clone());
+        library.add_game(game2);
+
+        let cursor = library.get_cursor().unwrap();
+
+        assert_eq!(cursor.section_id(), library.sections[0].id());
+        assert_eq!(cursor.game_id(), game1.id());
+    }
+
+    #[test]
+    fn test_get_cursor_multiple_sections() {
+        let mut library = create_library();
+        let game1 = test_game("1", "Monkey Island", "monkey-island");
+        let game2 = test_game("2", "Alice in Wonderland", "alice-in-wonderland");
+        let game3 = test_game("3", "Another World", "another-world");
+
+        library.add_game(game1);
+        library.add_game(game2.clone());
+        library.add_game(game3);
+
+        let cursor = library.get_cursor().unwrap();
+
+        assert_eq!(cursor.section_id(), library.sections[0].id());
+        assert_eq!(cursor.game_id(), game2.id());
     }
 }
