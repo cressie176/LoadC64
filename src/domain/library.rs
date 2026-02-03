@@ -109,37 +109,43 @@ impl Library {
         Cursor::last_game(prev_section)
     }
 
-    pub fn get_game_window(&self, cursor: &Cursor, offset: i32, count: usize) -> Vec<GameId> {
+    pub fn get_game_window(&self, cursor: &Cursor, offset: i32, count: usize) -> Option<Vec<GameId>> {
         if self.sections.is_empty() {
-            return Vec::new();
+            return None;
         }
-        let start_cursor = match self.move_backwards(cursor, offset.abs()) {
-            Some(cursor) => cursor,
-            None => return Vec::new(),
-        };
-        self.collect_games_forward(&start_cursor, count)
+        let start_cursor = self.iterate_backwards(cursor, offset.abs(), |_| {})?;
+
+        let mut games = Vec::with_capacity(count);
+        games.push(start_cursor.game_id().clone());
+
+        self.iterate_forwards(&start_cursor, count - 1, |game_id| {
+            games.push(game_id.clone());
+        });
+
+        Some(games)
     }
 
-    fn move_backwards(&self, cursor: &Cursor, steps: i32) -> Option<Cursor> {
+    fn iterate_forwards<F>(&self, cursor: &Cursor, steps: usize, mut callback: F)
+    where
+        F: FnMut(&GameId),
+    {
+        let mut current_cursor = cursor.clone();
+        for _ in 0..steps {
+            current_cursor = self.next_game(&current_cursor).unwrap();
+            callback(current_cursor.game_id());
+        }
+    }
+
+    fn iterate_backwards<F>(&self, cursor: &Cursor, steps: i32, mut callback: F) -> Option<Cursor>
+    where
+        F: FnMut(&GameId),
+    {
         let mut current_cursor = cursor.clone();
         for _ in 0..steps {
             current_cursor = self.previous_game(&current_cursor)?;
+            callback(current_cursor.game_id());
         }
         Some(current_cursor)
-    }
-
-    fn collect_games_forward(&self, cursor: &Cursor, count: usize) -> Vec<GameId> {
-        let mut games = Vec::with_capacity(count);
-        let mut current_cursor = cursor.clone();
-
-        games.push(current_cursor.game_id().clone());
-
-        for _ in 1..count {
-            current_cursor = self.next_game(&current_cursor).unwrap();
-            games.push(current_cursor.game_id().clone());
-        }
-
-        games
     }
 
     fn get_current_section(&self, cursor: &Cursor) -> &dyn Section {
@@ -621,7 +627,7 @@ mod tests {
 
         let window = library.get_game_window(&cursor, -1, 3);
 
-        assert_eq!(window.len(), 0);
+        assert!(window.is_none());
     }
 
     #[test]
@@ -634,7 +640,7 @@ mod tests {
         let section_id = library.sections[0].id().clone();
         let cursor = Cursor::new(section_id, game1.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game1.id());
@@ -654,7 +660,7 @@ mod tests {
         let section_id = library.sections[0].id().clone();
         let cursor = Cursor::new(section_id, game1.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game2.id());
@@ -674,7 +680,7 @@ mod tests {
         let section_id = library.sections[0].id().clone();
         let cursor = Cursor::new(section_id, game2.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game1.id());
@@ -700,7 +706,7 @@ mod tests {
         let section_id = library.sections[0].id().clone();
         let cursor = Cursor::new(section_id, game1.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game5.id());
@@ -726,7 +732,7 @@ mod tests {
         let section_id = library.sections[0].id().clone();
         let cursor = Cursor::new(section_id, game3.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game2.id());
@@ -752,7 +758,7 @@ mod tests {
         let section_id = library.sections[0].id().clone();
         let cursor = Cursor::new(section_id, game5.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game4.id());
@@ -776,7 +782,7 @@ mod tests {
         let section_id = library.sections[0].id().clone();
         let cursor = Cursor::new(section_id, game1.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game3.id());
@@ -800,7 +806,7 @@ mod tests {
         let section_id = library.sections[0].id().clone();
         let cursor = Cursor::new(section_id, game2.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game1.id());
@@ -824,7 +830,7 @@ mod tests {
         let section_id = library.sections[1].id().clone();
         let cursor = Cursor::new(section_id, game4.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game2.id());
@@ -848,7 +854,7 @@ mod tests {
         let section_id = library.sections[1].id().clone();
         let cursor = Cursor::new(section_id, game3.id().clone());
 
-        let window = library.get_game_window(&cursor, -1, 3);
+        let window = library.get_game_window(&cursor, -1, 3).unwrap();
 
         assert_eq!(window.len(), 3);
         assert_eq!(window[0], *game4.id());
