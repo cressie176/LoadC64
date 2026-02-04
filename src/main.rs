@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::Duration;
 
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
@@ -11,6 +12,7 @@ mod infrastructure;
 
 use domain::cursor::Cursor;
 use domain::library::Library;
+use domain::rom::Rom;
 use domain::section::CharacterSection;
 use infrastructure::game_loader;
 
@@ -32,6 +34,7 @@ enum Message {
     NextSection,
     PreviousSection,
     ToSection(char),
+    LaunchGame,
 }
 
 impl App {
@@ -96,6 +99,45 @@ impl App {
                 if let Some(new_cursor) = self.library.to_section(&section_key) {
                     self.cursor = Some(new_cursor);
                 }
+            }
+            Message::LaunchGame => {
+                if let Some(cursor) = &self.cursor
+                    && let Some(games) = self.library.get_game_window(cursor, 0, 1)
+                        && let Some(current_game) = games.first() {
+                            // Get the ROM path from the game
+                            current_game.visit(|_title, _year, _publisher, _notes, _media_set, roms: &[Rom]| {
+                                if let Some(rom) = roms.first() {
+                                    let rom_path = rom.path();
+                                    eprintln!("Launching VICE with ROM: {}", rom_path.display());
+
+                                    // Launch VICE
+                                    let result = Command::new("vice/bin/x64sc")
+                                        .args([
+                                            "-trapdevice8",
+                                            "-autostart-warp",
+                                            "-VICIIfull",
+                                            "-VICIIfilter",
+                                            "0",
+                                            "-VICIIglfilter",
+                                            "0",
+                                            "-VICIIdscan",
+                                            "-joydev1",
+                                            "0", // Disable joystick port 1
+                                            "-joydev2",
+                                            "1", // Enable joystick port 2
+                                            "+confirmonexit",
+                                            "-autostart",
+                                            &rom_path.to_string_lossy(),
+                                        ])
+                                        .spawn();
+
+                                    match result {
+                                        Ok(_) => eprintln!("VICE launched successfully"),
+                                        Err(e) => eprintln!("Failed to launch VICE: {e}"),
+                                    }
+                                }
+                            });
+                        }
             }
         }
     }
@@ -256,6 +298,7 @@ impl App {
             Key::Named(key::Named::ArrowRight) => Some(Message::NextGame),
             Key::Named(key::Named::PageUp) => Some(Message::PreviousSection),
             Key::Named(key::Named::PageDown) => Some(Message::NextSection),
+            Key::Named(key::Named::Enter) => Some(Message::LaunchGame),
             Key::Character(c) => {
                 if let Some(first_char) = c.chars().next()
                     && first_char.is_alphanumeric()
@@ -299,6 +342,7 @@ fn gamepad_worker() -> impl iced::futures::Stream<Item = Message> {
                             Button::DPadRight => Some(Message::NextGame),
                             Button::LeftTrigger2 => Some(Message::PreviousSection),
                             Button::RightTrigger2 => Some(Message::NextSection),
+                            Button::South => Some(Message::LaunchGame), // A button on Xbox, X on PlayStation
                             _ => None,
                         };
 
