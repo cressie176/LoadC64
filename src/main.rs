@@ -1,5 +1,7 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
+use gilrs::{Button, Event, EventType, Gilrs};
 use iced::keyboard::{Key, key};
 use iced::widget::{container, image, row, text};
 use iced::{Element, Task};
@@ -208,6 +210,41 @@ impl App {
             _ => None,
         });
 
-        iced::Subscription::batch(vec![window_events, keyboard_events])
+        let gamepad_subscription = iced::Subscription::run(gamepad_worker);
+
+        iced::Subscription::batch(vec![window_events, keyboard_events, gamepad_subscription])
     }
+}
+
+fn gamepad_worker() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::stream::StreamExt;
+
+    iced::stream::channel(50, move |mut output| async move {
+        let mut gilrs = match Gilrs::new() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+
+        let mut interval = async_std::stream::interval(Duration::from_millis(16));
+
+        loop {
+            interval.next().await;
+
+            while let Some(Event { event, .. }) = gilrs.next_event() {
+                if let EventType::ButtonPressed(button, _) = event {
+                    let message = match button {
+                        Button::DPadLeft => Some(Message::PreviousGame),
+                        Button::DPadRight => Some(Message::NextGame),
+                        Button::LeftTrigger2 => Some(Message::PreviousSection),
+                        Button::RightTrigger2 => Some(Message::NextSection),
+                        _ => None,
+                    };
+
+                    if let Some(msg) = message {
+                        let _ = output.try_send(msg);
+                    }
+                }
+            }
+        }
+    })
 }
