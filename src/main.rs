@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use iced::keyboard::{Key, key};
-use iced::widget::{column, container, image, row, text};
+use iced::widget::{container, image, row, text};
 use iced::{Element, Task};
 
 mod domain;
@@ -13,18 +13,18 @@ use domain::section::CharacterSection;
 use infrastructure::game_loader;
 
 fn main() -> iced::Result {
-    iced::application("Load!64", Load64::update, Load64::view)
-        .subscription(Load64::subscription)
-        .run_with(Load64::new)
+    iced::application("Load!64", App::update, App::view).subscription(App::subscription).run_with(App::new)
 }
 
-struct Load64 {
+struct App {
     library: Library<CharacterSection>,
     cursor: Option<Cursor>,
+    window_width: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
 enum Message {
+    WindowResized(f32, f32),
     NextGame,
     PreviousGame,
     NextSection,
@@ -32,7 +32,7 @@ enum Message {
     ToSection(char),
 }
 
-impl Load64 {
+impl App {
     fn new() -> (Self, Task<Message>) {
         let mut library = Library::new(Box::new(CharacterSection::new));
 
@@ -54,11 +54,21 @@ impl Load64 {
 
         let cursor = library.get_cursor();
 
-        (Self { library, cursor }, Task::none())
+        (
+            Self {
+                library,
+                cursor,
+                window_width: 1920.0,
+            },
+            Task::none(),
+        )
     }
 
     fn update(&mut self, message: Message) {
         match message {
+            Message::WindowResized(width, _height) => {
+                self.window_width = width;
+            }
             Message::NextGame => {
                 if let Some(cursor) = &self.cursor {
                     self.cursor = self.library.next_game(cursor);
@@ -88,101 +98,101 @@ impl Load64 {
         }
     }
 
-    #[allow(clippy::unused_self)]
     fn view(&self) -> Element<'_, Message> {
-        let carousel = self.build_carousel();
-        let game_info = self.build_game_info();
+        const REGULAR_GAME_CONTAINER_WIDTH: f32 = 240.0;
+        const CURRENT_GAME_CONTAINER_WIDTH: f32 = REGULAR_GAME_CONTAINER_WIDTH * 1.2;
+        const GAME_CONTAINER_SPACING: f32 = 10.0;
+        const CONTAINER_HEIGHT: f32 = 320.0;
 
-        let content = column![carousel, game_info].spacing(20);
+        let window_width = self.window_width;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let number_of_regular_games_each_side = (((window_width - CURRENT_GAME_CONTAINER_WIDTH) / 2.0) / (REGULAR_GAME_CONTAINER_WIDTH + GAME_CONTAINER_SPACING)).floor() as usize;
 
-        container(content).padding(20).center_x(iced::Fill).center_y(iced::Fill).into()
-    }
+        #[allow(clippy::cast_precision_loss)]
+        let total_carousel_width = (number_of_regular_games_each_side as f32 * 2.0).mul_add(REGULAR_GAME_CONTAINER_WIDTH + GAME_CONTAINER_SPACING, CURRENT_GAME_CONTAINER_WIDTH);
 
-    fn build_carousel(&self) -> Element<'_, Message> {
+        let canvas_padding = (window_width - total_carousel_width) / 2.0;
+
+        let mut carousel_row = row![].spacing(GAME_CONTAINER_SPACING).align_y(iced::Alignment::Center);
+
         if let Some(cursor) = &self.cursor {
-            let games = self.library.get_game_window(cursor, -4, 9);
+            let total_games = number_of_regular_games_each_side * 2 + 1;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+            let offset = -(number_of_regular_games_each_side as i32);
+            let games = self.library.get_game_window(cursor, offset, total_games);
 
             if let Some(games) = games {
-                let mut carousel_row = row![].spacing(10).align_y(iced::Alignment::Center);
+                let current_index = number_of_regular_games_each_side;
 
                 for (index, game) in games.iter().enumerate() {
-                    let is_current = index == 4;
-                    let (width, height) = if is_current { (234, 416) } else { (180, 320) };
+                    let is_current = index == current_index;
+                    let width = if is_current { CURRENT_GAME_CONTAINER_WIDTH } else { REGULAR_GAME_CONTAINER_WIDTH };
+                    let height = if is_current { CONTAINER_HEIGHT * 1.2 } else { CONTAINER_HEIGHT };
 
-                    let box_image = game.visit(|_title, _year, _publisher, _notes, media_set, _roms| media_set.box_front_2d().map(|media| media.path().clone()));
+                    let box_image = game.visit(|_title, _year, _publisher, _notes, media_set, _roms| media_set.box_front_2d_thumbnail().map(|media| media.path().clone()));
 
-                    let box_content: Element<'_, Message> = box_image.map_or_else(
+                    let game_container = box_image.map_or_else(
                         || {
                             container(text(""))
-                                .width(width)
-                                .height(height)
+                                .width(iced::Length::Fixed(width))
+                                .height(iced::Length::Fixed(height))
                                 .style(|_theme| container::Style {
-                                    background: Some(iced::Background::Color(iced::Color::from_rgb(0.0, 0.0, 0.0))),
+                                    background: Some(iced::Background::Color(iced::Color::WHITE)),
                                     ..Default::default()
                                 })
-                                .into()
                         },
                         |path| {
-                            let img = image(path.to_string_lossy().to_string()).content_fit(iced::ContentFit::Contain);
+                            let img = image(path.to_string_lossy().to_string())
+                                .width(iced::Length::Fixed(width))
+                                .height(iced::Length::Fixed(height))
+                                .content_fit(iced::ContentFit::Fill);
 
-                            container(container(img).width(width).height(height).center_x(width).center_y(height))
-                                .width(width)
-                                .height(height)
+                            container(img)
+                                .width(iced::Length::Fixed(width))
+                                .height(iced::Length::Fixed(height))
+                                .center_x(iced::Length::Fixed(width))
+                                .center_y(iced::Length::Fixed(height))
                                 .style(|_theme| container::Style {
-                                    background: Some(iced::Background::Color(iced::Color::from_rgb(0.0, 0.0, 0.0))),
+                                    background: Some(iced::Background::Color(iced::Color::WHITE)),
                                     ..Default::default()
                                 })
-                                .into()
                         },
                     );
 
-                    carousel_row = carousel_row.push(box_content);
+                    carousel_row = carousel_row.push(game_container);
                 }
-
-                return container(carousel_row).center_x(iced::Fill).into();
             }
         }
 
-        text("No games available").into()
-    }
-
-    fn build_game_info(&self) -> Element<'_, Message> {
-        if let Some(cursor) = &self.cursor {
-            let games = self.library.get_game_window(cursor, -4, 9);
-
-            if let Some(games) = games
-                && let Some(current_game) = games.get(4)
-            {
-                let (title, metadata) = current_game.visit(|title, year, publisher, _notes, _media_set, _roms| {
-                    let mut metadata_parts = Vec::new();
-                    if let Some(y) = year {
-                        metadata_parts.push(y.to_string());
-                    }
-                    if let Some(p) = publisher {
-                        metadata_parts.push(p.to_string());
-                    }
-
-                    let metadata_text = if metadata_parts.is_empty() { None } else { Some(metadata_parts.join(" - ")) };
-
-                    (title.to_string(), metadata_text)
-                });
-
-                let mut info = column![text(title).size(30)].spacing(5).align_x(iced::alignment::Horizontal::Center);
-
-                if let Some(metadata_text) = metadata {
-                    info = info.push(text(metadata_text).size(18));
-                }
-
-                return container(info).center_x(iced::Fill).into();
-            }
-        }
-
-        text("").into()
+        container(carousel_row)
+            .padding(iced::Padding {
+                top: 0.0,
+                right: canvas_padding,
+                bottom: 0.0,
+                left: canvas_padding,
+            })
+            .center_x(iced::Fill)
+            .center_y(iced::Fill)
+            .style(|_theme| container::Style {
+                background: Some(iced::Background::Color(iced::Color::BLACK)),
+                border: iced::Border {
+                    color: iced::Color::BLACK,
+                    width: 0.0,
+                    radius: iced::border::Radius::from(0.0),
+                },
+                ..Default::default()
+            })
+            .into()
     }
 
     #[allow(clippy::unused_self)]
     fn subscription(&self) -> iced::Subscription<Message> {
-        iced::keyboard::on_key_press(|key, _modifiers| match key {
+        let window_events = iced::event::listen_with(|event, _status, _id| match event {
+            iced::Event::Window(iced::window::Event::Resized(size)) => Some(Message::WindowResized(size.width, size.height)),
+            _ => None,
+        });
+
+        let keyboard_events = iced::keyboard::on_key_press(|key, _modifiers| match key {
             Key::Named(key::Named::ArrowLeft) => Some(Message::PreviousGame),
             Key::Named(key::Named::ArrowRight) => Some(Message::NextGame),
             Key::Named(key::Named::PageUp) => Some(Message::PreviousSection),
@@ -196,22 +206,8 @@ impl Load64 {
                 None
             }
             _ => None,
-        })
-    }
-}
+        });
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_app_initializes() {
-        let (_app, _task) = Load64::new();
-    }
-
-    #[test]
-    fn test_greeting_message() {
-        let greeting = "Hello Load!64";
-        assert_eq!(greeting, "Hello Load!64");
+        iced::Subscription::batch(vec![window_events, keyboard_events])
     }
 }

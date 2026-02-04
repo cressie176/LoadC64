@@ -73,11 +73,12 @@ fn load_media_set(game_dir: &Path) -> MediaSet {
     let media_dir = game_dir.join("media");
 
     let box_front_2d = load_media(&media_dir, "2d-box-front", MediaType::BoxFront2D);
+    let box_front_2d_thumbnail = load_media(&media_dir, "2d-box-front-thumbnail", MediaType::BoxFront2DThumbnail);
     let screenshot_loading = load_media(&media_dir, "screenshot-loading", MediaType::ScreenshotLoading);
     let screenshot_title = load_media(&media_dir, "screenshot-title", MediaType::ScreenshotTitle);
     let screenshot_gameplay = load_media(&media_dir, "screenshot-gameplay", MediaType::ScreenshotGameplay);
 
-    MediaSet::new(box_front_2d, screenshot_loading, screenshot_title, screenshot_gameplay)
+    MediaSet::new(box_front_2d, box_front_2d_thumbnail, screenshot_loading, screenshot_title, screenshot_gameplay)
 }
 
 fn load_media(media_dir: &Path, base_name: &str, media_type: MediaType) -> Option<Media> {

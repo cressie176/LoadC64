@@ -3,6 +3,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MediaType {
     BoxFront2D,
+    BoxFront2DThumbnail,
     ScreenshotLoading,
     ScreenshotTitle,
     ScreenshotGameplay,
@@ -31,15 +32,23 @@ impl Media {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MediaSet {
     box_front_2d: Option<Media>,
+    box_front_2d_thumbnail: Option<Media>,
     screenshot_loading: Option<Media>,
     screenshot_title: Option<Media>,
     screenshot_gameplay: Option<Media>,
 }
 
 impl MediaSet {
-    pub const fn new(box_front_2d: Option<Media>, screenshot_loading: Option<Media>, screenshot_title: Option<Media>, screenshot_gameplay: Option<Media>) -> Self {
+    pub const fn new(
+        box_front_2d: Option<Media>,
+        box_front_2d_thumbnail: Option<Media>,
+        screenshot_loading: Option<Media>,
+        screenshot_title: Option<Media>,
+        screenshot_gameplay: Option<Media>,
+    ) -> Self {
         Self {
             box_front_2d,
+            box_front_2d_thumbnail,
             screenshot_loading,
             screenshot_title,
             screenshot_gameplay,
@@ -48,6 +57,10 @@ impl MediaSet {
 
     pub const fn box_front_2d(&self) -> Option<&Media> {
         self.box_front_2d.as_ref()
+    }
+
+    pub const fn box_front_2d_thumbnail(&self) -> Option<&Media> {
+        self.box_front_2d_thumbnail.as_ref()
     }
 
     pub const fn screenshot_loading(&self) -> Option<&Media> {
