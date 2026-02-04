@@ -1,13 +1,16 @@
+use std::path::PathBuf;
+
 use iced::keyboard::{Key, key};
-use iced::widget::{column, container, text};
+use iced::widget::{column, container, image, row, text};
 use iced::{Element, Task};
 
 mod domain;
+mod infrastructure;
 
 use domain::cursor::Cursor;
-use domain::game::{Game, GameId};
 use domain::library::Library;
 use domain::section::CharacterSection;
+use infrastructure::game_loader;
 
 fn main() -> iced::Result {
     iced::application("Load!64", Load64::update, Load64::view)
@@ -30,116 +33,23 @@ enum Message {
 }
 
 impl Load64 {
-    #[allow(clippy::too_many_lines)]
     fn new() -> (Self, Task<Message>) {
         let mut library = Library::new(Box::new(CharacterSection::new));
 
-        let games = vec![
-            ("1", "Arkanoid", "arkanoid"),
-            ("2", "Alien Syndrome", "alien-syndrome"),
-            ("3", "Another World", "another-world"),
-            ("4", "Archon", "archon"),
-            ("5", "Aztec Challenge", "aztec-challenge"),
-            ("6", "Boulder Dash", "boulder-dash"),
-            ("7", "Bubble Bobble", "bubble-bobble"),
-            ("8", "Bruce Lee", "bruce-lee"),
-            ("9", "Barbarian", "barbarian"),
-            ("10", "Burnin' Rubber", "burnin-rubber"),
-            ("11", "Commando", "commando"),
-            ("12", "Creatures", "creatures"),
-            ("13", "Choplifter", "choplifter"),
-            ("14", "California Games", "california-games"),
-            ("15", "Cybernoid", "cybernoid"),
-            ("16", "Defender of the Crown", "defender-of-the-crown"),
-            ("17", "Dizzy", "dizzy"),
-            ("18", "Donkey Kong", "donkey-kong"),
-            ("19", "Driller", "driller"),
-            ("20", "Dragon's Lair", "dragons-lair"),
-            ("21", "Elite", "elite"),
-            ("22", "Epyx Summer Games", "epyx-summer-games"),
-            ("23", "Exolon", "exolon"),
-            ("24", "Enduro Racer", "enduro-racer"),
-            ("25", "Everyone's a Wally", "everyones-a-wally"),
-            ("26", "Fist II", "fist-ii"),
-            ("27", "Firebird", "firebird"),
-            ("28", "Fort Apocalypse", "fort-apocalypse"),
-            ("29", "Forbidden Forest", "forbidden-forest"),
-            ("30", "Frankie Goes to Hollywood", "frankie-goes-to-hollywood"),
-            ("31", "Giana Sisters", "giana-sisters"),
-            ("32", "Ghosts 'n Goblins", "ghosts-n-goblins"),
-            ("33", "Green Beret", "green-beret"),
-            ("34", "Golden Axe", "golden-axe"),
-            ("35", "Gunship", "gunship"),
-            ("36", "Head over Heels", "head-over-heels"),
-            ("37", "H.E.R.O.", "hero"),
-            ("38", "Hysteria", "hysteria"),
-            ("39", "Hawkeye", "hawkeye"),
-            ("40", "Hard'n'Heavy", "hard-n-heavy"),
-            ("41", "International Karate", "international-karate"),
-            ("42", "Impossible Mission", "impossible-mission"),
-            ("43", "IK+", "ik-plus"),
-            ("44", "Infiltrator", "infiltrator"),
-            ("45", "International Soccer", "international-soccer"),
-            ("46", "Jet Set Willy", "jet-set-willy"),
-            ("47", "Jumpman", "jumpman"),
-            ("48", "Jungle Hunt", "jungle-hunt"),
-            ("49", "Joust", "joust"),
-            ("50", "Jupiter Lander", "jupiter-lander"),
-            ("51", "Kung-Fu Master", "kung-fu-master"),
-            ("52", "Katakis", "katakis"),
-            ("53", "Knight Lore", "knight-lore"),
-            ("54", "Kikstart", "kikstart"),
-            ("55", "Krakout", "krakout"),
-            ("56", "Laser Squad", "laser-squad"),
-            ("57", "Last Ninja", "last-ninja"),
-            ("58", "Leaderboard", "leaderboard"),
-            ("59", "Lode Runner", "lode-runner"),
-            ("60", "Little Computer People", "little-computer-people"),
-            ("61", "Maniac Mansion", "maniac-mansion"),
-            ("62", "Marble Madness", "marble-madness"),
-            ("63", "Monty on the Run", "monty-on-the-run"),
-            ("64", "Myth", "myth"),
-            ("65", "Mega Apocalypse", "mega-apocalypse"),
-            ("66", "Nebulus", "nebulus"),
-            ("67", "North & South", "north-and-south"),
-            ("68", "Nodes of Yesod", "nodes-of-yesod"),
-            ("69", "Netherworld", "netherworld"),
-            ("70", "Navy Moves", "navy-moves"),
-            ("71", "Outrun", "outrun"),
-            ("72", "Operation Wolf", "operation-wolf"),
-            ("73", "One Man and His Droid", "one-man-and-his-droid"),
-            ("74", "Olympic Games", "olympic-games"),
-            ("75", "Overlander", "overlander"),
-            ("76", "Paradroid", "paradroid"),
-            ("77", "Platoon", "platoon"),
-            ("78", "Pirates!", "pirates"),
-            ("79", "Project Firestart", "project-firestart"),
-            ("80", "Pitfall II", "pitfall-ii"),
-            ("81", "Quake Minus One", "quake-minus-one"),
-            ("82", "Quick Step", "quick-step"),
-            ("83", "Quattro Adventure", "quattro-adventure"),
-            ("84", "Q*bert", "qbert"),
-            ("85", "Quest for Tires", "quest-for-tires"),
-            ("86", "R-Type", "r-type"),
-            ("87", "Rainbow Islands", "rainbow-islands"),
-            ("88", "Raid over Moscow", "raid-over-moscow"),
-            ("89", "Rick Dangerous", "rick-dangerous"),
-            ("90", "Rambo", "rambo"),
-            ("91", "Skate or Die", "skate-or-die"),
-            ("92", "Summer Games II", "summer-games-ii"),
-            ("93", "Supercycle", "supercycle"),
-            ("94", "Sentinel", "sentinel"),
-            ("95", "Spy vs Spy", "spy-vs-spy"),
-            ("96", "Turrican", "turrican"),
-            ("97", "The Last V8", "the-last-v8"),
-            ("98", "Thing on a Spring", "thing-on-a-spring"),
-            ("99", "Target Renegade", "target-renegade"),
-            ("100", "Times of Lore", "times-of-lore"),
-        ];
+        let games_dir = PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))
+            .join("Documents")
+            .join("Load64")
+            .join("games");
 
-        for (id, title, sort_key) in games {
-            let game = Game::new(GameId::new(id.to_string()), title.to_string(), sort_key.to_string(), None, None, None);
-            library.add_game(game);
+        match game_loader::load_games_from_directory(&games_dir) {
+            Ok(games) => {
+                for game in games {
+                    library.add_game(game);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to load games: {e}");
+            }
         }
 
         let cursor = library.get_cursor();
@@ -181,38 +91,93 @@ impl Load64 {
     #[allow(clippy::unused_self)]
     fn view(&self) -> Element<'_, Message> {
         let carousel = self.build_carousel();
+        let game_info = self.build_game_info();
 
-        container(column![carousel]).padding(20).center_x(iced::Fill).center_y(iced::Fill).into()
+        let content = column![carousel, game_info].spacing(20);
+
+        container(content).padding(20).center_x(iced::Fill).center_y(iced::Fill).into()
     }
 
     fn build_carousel(&self) -> Element<'_, Message> {
         if let Some(cursor) = &self.cursor {
-            let games = self.library.get_game_window(cursor, -3, 7);
+            let games = self.library.get_game_window(cursor, -4, 9);
 
             if let Some(games) = games {
-                let mut boxes = column![].spacing(10);
+                let mut carousel_row = row![].spacing(10).align_y(iced::Alignment::Center);
 
-                for game in games {
-                    let game_box = container(text(game.title()).size(20))
-                        .padding(20)
-                        .width(iced::Fill)
-                        .center_x(iced::Fill)
-                        .style(|_theme| container::Style {
-                            border: iced::Border {
-                                color: iced::Color::from_rgb(0.5, 0.5, 0.5),
-                                width: 2.0,
-                                radius: iced::border::Radius::from(5.0),
-                            },
-                            ..Default::default()
-                        });
-                    boxes = boxes.push(game_box);
+                for (index, game) in games.iter().enumerate() {
+                    let is_current = index == 4;
+                    let (width, height) = if is_current { (234, 416) } else { (180, 320) };
+
+                    let box_image = game.visit(|_title, _year, _publisher, _notes, media_set, _roms| media_set.box_front_2d().map(|media| media.path().clone()));
+
+                    let box_content: Element<'_, Message> = box_image.map_or_else(
+                        || {
+                            container(text(""))
+                                .width(width)
+                                .height(height)
+                                .style(|_theme| container::Style {
+                                    background: Some(iced::Background::Color(iced::Color::from_rgb(0.0, 0.0, 0.0))),
+                                    ..Default::default()
+                                })
+                                .into()
+                        },
+                        |path| {
+                            let img = image(path.to_string_lossy().to_string()).content_fit(iced::ContentFit::Contain);
+
+                            container(container(img).width(width).height(height).center_x(width).center_y(height))
+                                .width(width)
+                                .height(height)
+                                .style(|_theme| container::Style {
+                                    background: Some(iced::Background::Color(iced::Color::from_rgb(0.0, 0.0, 0.0))),
+                                    ..Default::default()
+                                })
+                                .into()
+                        },
+                    );
+
+                    carousel_row = carousel_row.push(box_content);
                 }
 
-                return boxes.into();
+                return container(carousel_row).center_x(iced::Fill).into();
             }
         }
 
         text("No games available").into()
+    }
+
+    fn build_game_info(&self) -> Element<'_, Message> {
+        if let Some(cursor) = &self.cursor {
+            let games = self.library.get_game_window(cursor, -4, 9);
+
+            if let Some(games) = games
+                && let Some(current_game) = games.get(4)
+            {
+                let (title, metadata) = current_game.visit(|title, year, publisher, _notes, _media_set, _roms| {
+                    let mut metadata_parts = Vec::new();
+                    if let Some(y) = year {
+                        metadata_parts.push(y.to_string());
+                    }
+                    if let Some(p) = publisher {
+                        metadata_parts.push(p.to_string());
+                    }
+
+                    let metadata_text = if metadata_parts.is_empty() { None } else { Some(metadata_parts.join(" - ")) };
+
+                    (title.to_string(), metadata_text)
+                });
+
+                let mut info = column![text(title).size(30)].spacing(5).align_x(iced::alignment::Horizontal::Center);
+
+                if let Some(metadata_text) = metadata {
+                    info = info.push(text(metadata_text).size(18));
+                }
+
+                return container(info).center_x(iced::Fill).into();
+            }
+        }
+
+        text("").into()
     }
 
     #[allow(clippy::unused_self)]

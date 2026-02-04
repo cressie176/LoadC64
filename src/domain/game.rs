@@ -1,6 +1,9 @@
 use std::cmp::Ordering;
 use std::hash::Hash;
 
+use super::media::MediaSet;
+use super::rom::Rom;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GameId(String);
 
@@ -18,10 +21,22 @@ pub struct Game {
     year: Option<u16>,
     publisher: Option<String>,
     notes: Option<String>,
+    media_set: MediaSet,
+    roms: Vec<Rom>,
 }
 
 impl Game {
-    pub const fn new(id: GameId, title: String, sort_key: String, year: Option<u16>, publisher: Option<String>, notes: Option<String>) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    pub const fn new(
+        id: GameId,
+        title: String,
+        sort_key: String,
+        year: Option<u16>,
+        publisher: Option<String>,
+        notes: Option<String>,
+        media_set: MediaSet,
+        roms: Vec<Rom>,
+    ) -> Self {
         Self {
             id,
             title,
@@ -29,14 +44,16 @@ impl Game {
             year,
             publisher,
             notes,
+            media_set,
+            roms,
         }
     }
 
     pub fn visit<F, R>(&self, visitor: F) -> R
     where
-        F: FnOnce(&str, Option<u16>, Option<&str>, Option<&str>) -> R,
+        F: FnOnce(&str, Option<u16>, Option<&str>, Option<&str>, &MediaSet, &[Rom]) -> R,
     {
-        visitor(&self.title, self.year, self.publisher.as_deref(), self.notes.as_deref())
+        visitor(&self.title, self.year, self.publisher.as_deref(), self.notes.as_deref(), &self.media_set, &self.roms)
     }
 
     pub const fn id(&self) -> &GameId {
@@ -70,7 +87,16 @@ impl PartialOrd for Game {
 
 #[cfg(test)]
 pub(super) fn test_game(id: &str, title: &str, sort_key: &str) -> Game {
-    Game::new(GameId::new(id.to_string()), title.to_string(), sort_key.to_string(), None, None, None)
+    Game::new(
+        GameId::new(id.to_string()),
+        title.to_string(),
+        sort_key.to_string(),
+        None,
+        None,
+        None,
+        MediaSet::default(),
+        Vec::new(),
+    )
 }
 
 #[cfg(test)]
@@ -100,13 +126,17 @@ mod tests {
             Some(1990),
             Some("LucasArts".to_string()),
             Some("Classic adventure game".to_string()),
+            MediaSet::default(),
+            Vec::new(),
         );
 
-        let result = game.visit(|title, year, publisher, notes| {
+        let result = game.visit(|title, year, publisher, notes, media_set, roms| {
             assert_eq!(title, "Monkey Island");
             assert_eq!(year, Some(1990));
             assert_eq!(publisher, Some("LucasArts"));
             assert_eq!(notes, Some("Classic adventure game"));
+            assert!(media_set.box_front_2d().is_none());
+            assert!(roms.is_empty());
             "visited"
         });
 
@@ -117,11 +147,13 @@ mod tests {
     fn test_visitor_with_none_fields() {
         let game = test_game("1", "Unknown Game", "unknown-game");
 
-        game.visit(|title, year, publisher, notes| {
+        game.visit(|title, year, publisher, notes, media_set, roms| {
             assert_eq!(title, "Unknown Game");
             assert_eq!(year, None);
             assert_eq!(publisher, None);
             assert_eq!(notes, None);
+            assert!(media_set.box_front_2d().is_none());
+            assert!(roms.is_empty());
         });
     }
 }
