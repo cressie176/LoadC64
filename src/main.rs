@@ -101,11 +101,16 @@ impl App {
                 }
             }
             Message::LaunchGame => {
-                if let Some(cursor) = &self.cursor
-                    && let Some(games) = self.library.get_game_window(cursor, 0, 1)
-                        && let Some(current_game) = games.first() {
+                eprintln!("LaunchGame message received");
+                if let Some(cursor) = &self.cursor {
+                    eprintln!("Cursor exists");
+                    if let Some(games) = self.library.get_game_window(cursor, 0, 1) {
+                        eprintln!("Got game window, {} games", games.len());
+                        if let Some(current_game) = games.first() {
+                            eprintln!("Got current game");
                             // Get the ROM path from the game
-                            current_game.visit(|_title, _year, _publisher, _notes, _media_set, roms: &[Rom]| {
+                            current_game.visit(|title, _year, _publisher, _notes, _media_set, roms: &[Rom]| {
+                                eprintln!("Game: {}, ROMs: {}", title, roms.len());
                                 if let Some(rom) = roms.first() {
                                     let rom_path = rom.path();
                                     eprintln!("Launching VICE with ROM: {}", rom_path.display());
@@ -135,9 +140,19 @@ impl App {
                                         Ok(_) => eprintln!("VICE launched successfully"),
                                         Err(e) => eprintln!("Failed to launch VICE: {e}"),
                                     }
+                                } else {
+                                    eprintln!("No ROM found for game");
                                 }
                             });
+                        } else {
+                            eprintln!("No current game found");
                         }
+                    } else {
+                        eprintln!("No games in window");
+                    }
+                } else {
+                    eprintln!("No cursor");
+                }
             }
         }
     }

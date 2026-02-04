@@ -5,6 +5,7 @@ use serde::Deserialize;
 
 use crate::domain::game::{Game, GameId};
 use crate::domain::media::{Media, MediaSet, MediaType};
+use crate::domain::rom::Rom;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,6 +57,7 @@ fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, St
     let year = config.year.and_then(|y| y.parse::<u16>().ok());
 
     let media_set = load_media_set(game_dir);
+    let roms = load_roms(game_dir);
 
     Ok(Game::new(
         GameId::new(config.id),
@@ -65,7 +67,7 @@ fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, St
         config.publisher,
         config.notes,
         media_set,
-        Vec::new(),
+        roms,
     ))
 }
 
@@ -92,4 +94,24 @@ fn load_media(media_dir: &Path, base_name: &str, media_type: MediaType) -> Optio
     }
 
     None
+}
+
+fn load_roms(game_dir: &Path) -> Vec<Rom> {
+    let roms_dir = game_dir.join("roms");
+    let mut roms = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(&roms_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file()
+                && let Some(ext) = path.extension() {
+                    let ext_str = ext.to_string_lossy().to_lowercase();
+                    if ext_str == "d64" || ext_str == "t64" || ext_str == "prg" || ext_str == "crt" {
+                        roms.push(Rom::new(path));
+                    }
+                }
+        }
+    }
+
+    roms
 }
