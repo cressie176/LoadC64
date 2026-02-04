@@ -283,10 +283,14 @@ fn gamepad_worker() -> impl iced::futures::Stream<Item = Message> {
         };
 
         let mut interval = async_std::stream::interval(Duration::from_millis(16));
+        let mut left_stick_x = 0.0_f32;
+        let mut frame_counter = 0_u32;
 
         loop {
             interval.next().await;
+            frame_counter += 1;
 
+            // Process all pending events
             while let Some(Event { event, .. }) = gilrs.next_event() {
                 match event {
                     EventType::ButtonPressed(button, _) => {
@@ -303,25 +307,27 @@ fn gamepad_worker() -> impl iced::futures::Stream<Item = Message> {
                         }
                     }
                     EventType::AxisChanged(axis, value, _) => {
-                        const AXIS_THRESHOLD: f32 = 0.5;
-                        let message = match axis {
-                            Axis::LeftStickX => {
-                                if value < -AXIS_THRESHOLD {
-                                    Some(Message::PreviousGame)
-                                } else if value > AXIS_THRESHOLD {
-                                    Some(Message::NextGame)
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => None,
-                        };
-
-                        if let Some(msg) = message {
-                            let _ = output.try_send(msg);
+                        if axis == Axis::LeftStickX {
+                            left_stick_x = value;
                         }
                     }
                     _ => {}
+                }
+            }
+
+            // Send repeat messages every 3 frames (~50ms) if thumbstick is held
+            if frame_counter.is_multiple_of(3) {
+                const AXIS_THRESHOLD: f32 = 0.5;
+                let message = if left_stick_x < -AXIS_THRESHOLD {
+                    Some(Message::PreviousGame)
+                } else if left_stick_x > AXIS_THRESHOLD {
+                    Some(Message::NextGame)
+                } else {
+                    None
+                };
+
+                if let Some(msg) = message {
+                    let _ = output.try_send(msg);
                 }
             }
         }
