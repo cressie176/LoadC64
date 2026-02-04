@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use gilrs::{Button, Event, EventType, Gilrs};
 use iced::keyboard::{Key, key};
-use iced::widget::{container, image, row, text};
+use iced::widget::{column, container, image, row, text};
 use iced::{Element, Task};
 
 mod domain;
@@ -100,6 +100,7 @@ impl App {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn view(&self) -> Element<'_, Message> {
         const REGULAR_GAME_CONTAINER_WIDTH: f32 = 240.0;
         const CURRENT_GAME_CONTAINER_WIDTH: f32 = REGULAR_GAME_CONTAINER_WIDTH * 1.2;
@@ -139,7 +140,7 @@ impl App {
                                 .width(iced::Length::Fixed(width))
                                 .height(iced::Length::Fixed(height))
                                 .style(|_theme| container::Style {
-                                    background: Some(iced::Background::Color(iced::Color::WHITE)),
+                                    background: Some(iced::Background::Color(iced::Color::BLACK)),
                                     ..Default::default()
                                 })
                         },
@@ -155,7 +156,7 @@ impl App {
                                 .center_x(iced::Length::Fixed(width))
                                 .center_y(iced::Length::Fixed(height))
                                 .style(|_theme| container::Style {
-                                    background: Some(iced::Background::Color(iced::Color::WHITE)),
+                                    background: Some(iced::Background::Color(iced::Color::BLACK)),
                                     ..Default::default()
                                 })
                         },
@@ -166,7 +167,7 @@ impl App {
             }
         }
 
-        container(carousel_row)
+        let carousel = container(carousel_row)
             .padding(iced::Padding {
                 top: 0.0,
                 right: canvas_padding,
@@ -174,7 +175,6 @@ impl App {
                 left: canvas_padding,
             })
             .center_x(iced::Fill)
-            .center_y(iced::Fill)
             .style(|_theme| container::Style {
                 background: Some(iced::Background::Color(iced::Color::BLACK)),
                 border: iced::Border {
@@ -182,6 +182,63 @@ impl App {
                     width: 0.0,
                     radius: iced::border::Radius::from(0.0),
                 },
+                ..Default::default()
+            });
+
+        #[allow(clippy::option_if_let_else)]
+        let game_info: Element<'_, Message> = if let Some(cursor) = &self.cursor {
+            let total_games = number_of_regular_games_each_side * 2 + 1;
+            let current_index = number_of_regular_games_each_side;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+            let offset = -(number_of_regular_games_each_side as i32);
+            let games = self.library.get_game_window(cursor, offset, total_games);
+
+            #[allow(clippy::option_if_let_else)]
+            if let Some(games) = games {
+                #[allow(clippy::option_if_let_else)]
+                if let Some(current_game) = games.get(current_index) {
+                    let (title, metadata) = current_game.visit(|title, year, publisher, _notes, _media_set, _roms| {
+                        let mut metadata_parts = Vec::new();
+                        if let Some(y) = year {
+                            metadata_parts.push(y.to_string());
+                        }
+                        if let Some(p) = publisher {
+                            metadata_parts.push(p.to_string());
+                        }
+
+                        let metadata_text = if metadata_parts.is_empty() { None } else { Some(metadata_parts.join(" - ")) };
+
+                        (title.to_string(), metadata_text)
+                    });
+
+                    let info: iced::widget::Column<'_, Message> = if let Some(metadata_text) = metadata {
+                        column![text(title).size(30).color(iced::Color::WHITE), text(metadata_text).size(18).color(iced::Color::WHITE)]
+                            .spacing(5)
+                            .align_x(iced::alignment::Horizontal::Center)
+                    } else {
+                        column![text(title).size(30).color(iced::Color::WHITE)]
+                            .spacing(5)
+                            .align_x(iced::alignment::Horizontal::Center)
+                    };
+
+                    container(info).center_x(iced::Fill).into()
+                } else {
+                    container(text("")).into()
+                }
+            } else {
+                container(text("")).into()
+            }
+        } else {
+            container(text("")).into()
+        };
+
+        let content = column![carousel, game_info].spacing(20);
+
+        container(content)
+            .center_x(iced::Fill)
+            .center_y(iced::Fill)
+            .style(|_theme| container::Style {
+                background: Some(iced::Background::Color(iced::Color::BLACK)),
                 ..Default::default()
             })
             .into()
