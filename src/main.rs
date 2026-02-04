@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use gilrs::{Button, Event, EventType, Gilrs};
+use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use iced::keyboard::{Key, key};
 use iced::widget::{column, container, image, row, text};
 use iced::{Element, Task};
@@ -288,18 +288,40 @@ fn gamepad_worker() -> impl iced::futures::Stream<Item = Message> {
             interval.next().await;
 
             while let Some(Event { event, .. }) = gilrs.next_event() {
-                if let EventType::ButtonPressed(button, _) = event {
-                    let message = match button {
-                        Button::DPadLeft => Some(Message::PreviousGame),
-                        Button::DPadRight => Some(Message::NextGame),
-                        Button::LeftTrigger2 => Some(Message::PreviousSection),
-                        Button::RightTrigger2 => Some(Message::NextSection),
-                        _ => None,
-                    };
+                match event {
+                    EventType::ButtonPressed(button, _) => {
+                        let message = match button {
+                            Button::DPadLeft => Some(Message::PreviousGame),
+                            Button::DPadRight => Some(Message::NextGame),
+                            Button::LeftTrigger2 => Some(Message::PreviousSection),
+                            Button::RightTrigger2 => Some(Message::NextSection),
+                            _ => None,
+                        };
 
-                    if let Some(msg) = message {
-                        let _ = output.try_send(msg);
+                        if let Some(msg) = message {
+                            let _ = output.try_send(msg);
+                        }
                     }
+                    EventType::AxisChanged(axis, value, _) => {
+                        const AXIS_THRESHOLD: f32 = 0.5;
+                        let message = match axis {
+                            Axis::LeftStickX => {
+                                if value < -AXIS_THRESHOLD {
+                                    Some(Message::PreviousGame)
+                                } else if value > AXIS_THRESHOLD {
+                                    Some(Message::NextGame)
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        };
+
+                        if let Some(msg) = message {
+                            let _ = output.try_send(msg);
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
