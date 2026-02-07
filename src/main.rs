@@ -49,6 +49,24 @@ impl App {
         (Self { library, cursor, window_width: DEFAULT_WINDOW_WIDTH, vice_emulator }, Task::none())
     }
 
+    fn launch_current_game(&self) {
+        let Some(cursor) = &self.cursor else {
+            return;
+        };
+
+        let Some(game) = self.library.get_game(cursor) else {
+            return;
+        };
+
+        game.visit(|_title, _year, _publisher, _notes, _media_set, roms: &[Rom]| {
+            let Some(rom) = roms.first() else {
+                return;
+            };
+
+            self.vice_emulator.launch(rom.path()).expect("Failed to launch VICE");
+        });
+    }
+
     fn update(&mut self, message: Message) {
         match message {
             Message::WindowResized(width, _height) => {
@@ -81,14 +99,7 @@ impl App {
                 }
             }
             Message::LaunchGame => {
-                if let Some(cursor) = &self.cursor
-                    && let Some(game) = self.library.get_game(cursor) {
-                        game.visit(|_title, _year, _publisher, _notes, _media_set, roms: &[Rom]| {
-                            if let Some(rom) = roms.first() {
-                                self.vice_emulator.launch(rom.path()).expect("Failed to launch VICE");
-                            }
-                        });
-                    }
+                self.launch_current_game();
             }
         }
     }
