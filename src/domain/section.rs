@@ -59,11 +59,7 @@ impl Eq for CharacterSection {}
 impl CharacterSection {
     pub fn new(game: &Game) -> Self {
         let character = game.first_character().to_uppercase().next().unwrap();
-        Self {
-            id: SectionId::new(),
-            character,
-            game_ids: Vec::new(),
-        }
+        Self { id: SectionId::new(), character, game_ids: Vec::new() }
     }
 }
 

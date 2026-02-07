@@ -13,24 +13,15 @@ impl Cursor {
     }
 
     pub fn first_game(section: &dyn Section) -> Option<Self> {
-        Some(Self {
-            section_id: section.id().clone(),
-            game_id: section.first_game_id()?.clone(),
-        })
+        Some(Self { section_id: section.id().clone(), game_id: section.first_game_id()?.clone() })
     }
 
     pub fn last_game(section: &dyn Section) -> Option<Self> {
-        Some(Self {
-            section_id: section.id().clone(),
-            game_id: section.last_game_id()?.clone(),
-        })
+        Some(Self { section_id: section.id().clone(), game_id: section.last_game_id()?.clone() })
     }
 
     pub fn for_game(section: &dyn Section, game_id: &GameId) -> Self {
-        Self {
-            section_id: section.id().clone(),
-            game_id: game_id.clone(),
-        }
+        Self { section_id: section.id().clone(), game_id: game_id.clone() }
     }
 
     pub const fn section_id(&self) -> &SectionId {

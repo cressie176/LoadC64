@@ -45,14 +45,7 @@ impl App {
         let mut library = Library::new(Box::new(CharacterSection::new));
         game_loader::load_games_into(&mut library, &args.games_dir).expect("Error loading games");
         let cursor = library.get_cursor();
-        (
-            Self {
-                library,
-                cursor,
-                window_width: DEFAULT_WINDOW_WIDTH,
-            },
-            Task::none(),
-        )
+        (Self { library, cursor, window_width: DEFAULT_WINDOW_WIDTH }, Task::none())
     }
 
     fn update(&mut self, message: Message) {
@@ -182,26 +175,18 @@ impl App {
                             container(text(""))
                                 .width(iced::Length::Fixed(width))
                                 .height(iced::Length::Fixed(height))
-                                .style(|_theme| container::Style {
-                                    background: Some(iced::Background::Color(iced::Color::BLACK)),
-                                    ..Default::default()
-                                })
+                                .style(|_theme| container::Style { background: Some(iced::Background::Color(iced::Color::BLACK)), ..Default::default() })
                         },
                         |path| {
-                            let img = image(path.to_string_lossy().to_string())
-                                .width(iced::Length::Fixed(width))
-                                .height(iced::Length::Fixed(height))
-                                .content_fit(iced::ContentFit::Fill);
+                            let img =
+                                image(path.to_string_lossy().to_string()).width(iced::Length::Fixed(width)).height(iced::Length::Fixed(height)).content_fit(iced::ContentFit::Fill);
 
                             container(img)
                                 .width(iced::Length::Fixed(width))
                                 .height(iced::Length::Fixed(height))
                                 .center_x(iced::Length::Fixed(width))
                                 .center_y(iced::Length::Fixed(height))
-                                .style(|_theme| container::Style {
-                                    background: Some(iced::Background::Color(iced::Color::BLACK)),
-                                    ..Default::default()
-                                })
+                                .style(|_theme| container::Style { background: Some(iced::Background::Color(iced::Color::BLACK)), ..Default::default() })
                         },
                     );
 
@@ -210,23 +195,13 @@ impl App {
             }
         }
 
-        let carousel = container(carousel_row)
-            .padding(iced::Padding {
-                top: 0.0,
-                right: canvas_padding,
-                bottom: 0.0,
-                left: canvas_padding,
-            })
-            .center_x(iced::Fill)
-            .style(|_theme| container::Style {
+        let carousel = container(carousel_row).padding(iced::Padding { top: 0.0, right: canvas_padding, bottom: 0.0, left: canvas_padding }).center_x(iced::Fill).style(|_theme| {
+            container::Style {
                 background: Some(iced::Background::Color(iced::Color::BLACK)),
-                border: iced::Border {
-                    color: iced::Color::BLACK,
-                    width: 0.0,
-                    radius: iced::border::Radius::from(0.0),
-                },
+                border: iced::Border { color: iced::Color::BLACK, width: 0.0, radius: iced::border::Radius::from(0.0) },
                 ..Default::default()
-            });
+            }
+        });
 
         #[allow(clippy::option_if_let_else)]
         let game_info: Element<'_, Message> = if let Some(cursor) = &self.cursor {
@@ -259,9 +234,7 @@ impl App {
                             .spacing(5)
                             .align_x(iced::alignment::Horizontal::Center)
                     } else {
-                        column![text(title).size(30).color(iced::Color::WHITE)]
-                            .spacing(5)
-                            .align_x(iced::alignment::Horizontal::Center)
+                        column![text(title).size(30).color(iced::Color::WHITE)].spacing(5).align_x(iced::alignment::Horizontal::Center)
                     };
 
                     container(info).center_x(iced::Fill).into()
@@ -280,10 +253,7 @@ impl App {
         container(content)
             .center_x(iced::Fill)
             .center_y(iced::Fill)
-            .style(|_theme| container::Style {
-                background: Some(iced::Background::Color(iced::Color::BLACK)),
-                ..Default::default()
-            })
+            .style(|_theme| container::Style { background: Some(iced::Background::Color(iced::Color::BLACK)), ..Default::default() })
             .into()
     }
 

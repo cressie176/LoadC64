@@ -37,16 +37,7 @@ impl Game {
         media_set: MediaSet,
         roms: Vec<Rom>,
     ) -> Self {
-        Self {
-            id,
-            title,
-            sort_key,
-            year,
-            publisher,
-            notes,
-            media_set,
-            roms,
-        }
+        Self { id, title, sort_key, year, publisher, notes, media_set, roms }
     }
 
     pub fn visit<F, R>(&self, visitor: F) -> R
@@ -87,16 +78,7 @@ impl PartialOrd for Game {
 
 #[cfg(test)]
 pub(super) fn test_game(id: &str, title: &str, sort_key: &str) -> Game {
-    Game::new(
-        GameId::new(id.to_string()),
-        title.to_string(),
-        sort_key.to_string(),
-        None,
-        None,
-        None,
-        MediaSet::default(),
-        Vec::new(),
-    )
+    Game::new(GameId::new(id.to_string()), title.to_string(), sort_key.to_string(), None, None, None, MediaSet::default(), Vec::new())
 }
 
 #[cfg(test)]

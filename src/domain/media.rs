@@ -46,13 +46,7 @@ impl MediaSet {
         screenshot_title: Option<Media>,
         screenshot_gameplay: Option<Media>,
     ) -> Self {
-        Self {
-            box_front_2d,
-            box_front_2d_thumbnail,
-            screenshot_loading,
-            screenshot_title,
-            screenshot_gameplay,
-        }
+        Self { box_front_2d, box_front_2d_thumbnail, screenshot_loading, screenshot_title, screenshot_gameplay }
     }
 
     pub const fn box_front_2d(&self) -> Option<&Media> {

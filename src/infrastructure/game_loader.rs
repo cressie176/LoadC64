@@ -67,16 +67,7 @@ fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, St
     let media_set = load_media_set(game_dir, config.media);
     let roms = load_roms(game_dir);
 
-    Ok(Game::new(
-        GameId::new(config.id),
-        config.title,
-        config.sort_title,
-        year,
-        config.publisher,
-        config.notes,
-        media_set,
-        roms,
-    ))
+    Ok(Game::new(GameId::new(config.id), config.title, config.sort_title, year, config.publisher, config.notes, media_set, roms))
 }
 
 fn load_media_set(game_dir: &Path, media_configs: Option<Vec<MediaConfig>>) -> MediaSet {

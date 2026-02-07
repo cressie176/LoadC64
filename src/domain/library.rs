@@ -20,11 +20,7 @@ pub struct Library<S: Section + Ord> {
 
 impl<S: Section + Ord> Library<S> {
     pub fn new(section_factory: Box<dyn Fn(&Game) -> S>) -> Self {
-        Self {
-            games: HashMap::new(),
-            sections: Vec::new(),
-            section_factory,
-        }
+        Self { games: HashMap::new(), sections: Vec::new(), section_factory }
     }
 
     pub fn get_cursor(&self) -> Option<Cursor> {
