@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
@@ -7,6 +6,7 @@ use iced::keyboard::{Key, key};
 use iced::widget::{column, container, image, row, text};
 use iced::{Element, Task};
 
+mod cli;
 mod domain;
 mod infrastructure;
 
@@ -41,20 +41,12 @@ impl App {
     fn new() -> (Self, Task<Message>) {
         let mut library = Library::new(Box::new(CharacterSection::new));
 
-        let games_dir = PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))
-            .join("Documents")
-            .join("Load64")
-            .join("games");
+        let args = cli::parse();
 
-        match game_loader::load_games_from_directory(&games_dir) {
-            Ok(games) => {
-                for game in games {
-                    library.add_game(game);
-                }
-            }
-            Err(e) => {
-                eprintln!("Failed to load games: {e}");
-            }
+        let games = game_loader::load_games_from_directory(&args.games_dir).expect("Error loading games");
+
+        for game in games {
+            library.add_game(game);
         }
 
         let cursor = library.get_cursor();
