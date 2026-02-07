@@ -16,6 +16,14 @@ struct GameConfig {
     year: Option<String>,
     publisher: Option<String>,
     notes: Option<String>,
+    media: Option<Vec<MediaConfig>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+struct MediaConfig {
+    r#type: String,
+    file: String,
 }
 
 pub fn load_games_from_directory(games_dir: &Path) -> Result<Vec<Game>, String> {
@@ -56,7 +64,7 @@ fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, St
 
     let year = config.year.and_then(|y| y.parse::<u16>().ok());
 
-    let media_set = load_media_set(game_dir);
+    let media_set = load_media_set(game_dir, config.media);
     let roms = load_roms(game_dir);
 
     Ok(Game::new(
@@ -71,29 +79,34 @@ fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, St
     ))
 }
 
-fn load_media_set(game_dir: &Path) -> MediaSet {
+fn load_media_set(game_dir: &Path, media_configs: Option<Vec<MediaConfig>>) -> MediaSet {
     let media_dir = game_dir.join("media");
 
-    let box_front_2d = load_media(&media_dir, "2d-box-front", MediaType::BoxFront2D);
-    let box_front_2d_thumbnail = load_media(&media_dir, "2d-box-front-thumbnail", MediaType::BoxFront2DThumbnail);
-    let screenshot_loading = load_media(&media_dir, "screenshot-loading", MediaType::ScreenshotLoading);
-    let screenshot_title = load_media(&media_dir, "screenshot-title", MediaType::ScreenshotTitle);
-    let screenshot_gameplay = load_media(&media_dir, "screenshot-gameplay", MediaType::ScreenshotGameplay);
+    let mut box_front_2d = None;
+    let mut box_front_2d_thumbnail = None;
+    let mut screenshot_loading = None;
+    let mut screenshot_title = None;
+    let mut screenshot_gameplay = None;
 
-    MediaSet::new(box_front_2d, box_front_2d_thumbnail, screenshot_loading, screenshot_title, screenshot_gameplay)
-}
+    if let Some(configs) = media_configs {
+        for config in configs {
+            let media_path = media_dir.join(&config.file);
+            if !media_path.exists() {
+                continue;
+            }
 
-fn load_media(media_dir: &Path, base_name: &str, media_type: MediaType) -> Option<Media> {
-    let extensions = ["png", "jpg", "jpeg"];
-
-    for ext in &extensions {
-        let path = media_dir.join(format!("{base_name}.{ext}"));
-        if path.exists() {
-            return Some(Media::new(media_type, path));
+            match config.r#type.as_str() {
+                "2d-box-front" => box_front_2d = Some(Media::new(MediaType::BoxFront2D, media_path)),
+                "2d-box-front-thumbnail" => box_front_2d_thumbnail = Some(Media::new(MediaType::BoxFront2DThumbnail, media_path)),
+                "screenshot-loading" => screenshot_loading = Some(Media::new(MediaType::ScreenshotLoading, media_path)),
+                "screenshot-title" => screenshot_title = Some(Media::new(MediaType::ScreenshotTitle, media_path)),
+                "screenshot-gameplay" => screenshot_gameplay = Some(Media::new(MediaType::ScreenshotGameplay, media_path)),
+                _ => eprintln!("Unknown media type: {}", config.r#type),
+            }
         }
     }
 
-    None
+    MediaSet::new(box_front_2d, box_front_2d_thumbnail, screenshot_loading, screenshot_title, screenshot_gameplay)
 }
 
 fn load_roms(game_dir: &Path) -> Vec<Rom> {
@@ -104,12 +117,13 @@ fn load_roms(game_dir: &Path) -> Vec<Rom> {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file()
-                && let Some(ext) = path.extension() {
-                    let ext_str = ext.to_string_lossy().to_lowercase();
-                    if ext_str == "d64" || ext_str == "t64" || ext_str == "prg" || ext_str == "crt" {
-                        roms.push(Rom::new(path));
-                    }
+                && let Some(ext) = path.extension()
+            {
+                let ext_str = ext.to_string_lossy().to_lowercase();
+                if ext_str == "d64" || ext_str == "t64" || ext_str == "prg" || ext_str == "crt" {
+                    roms.push(Rom::new(path));
                 }
+            }
         }
     }
 

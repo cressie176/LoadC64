@@ -35,6 +35,15 @@ The HTML documentation is preferred because:
 - Can be read and referenced by development tools
 - Text-based format compresses well in git
 
+## Controller Configuration
+
+### VICE Joystick Mapping Format
+- [`vjm-format.md`](vjm-format.md) - Complete specification of VICE joystick mapping file format (.vjm)
+- [`logitech-f310.md`](logitech-f310.md) - Example configuration for Logitech F310 controller with Atic Atac
+
+### VICE Keyboard Mapping
+- [`sdl_pos_uk.vkm`](sdl_pos_uk.vkm) - UK keyboard layout mapping for VICE SDL version
+
 ## Usage
 
 To browse the documentation locally:
