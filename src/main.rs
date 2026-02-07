@@ -16,6 +16,8 @@ use domain::rom::Rom;
 use domain::section::CharacterSection;
 use infrastructure::game_loader;
 
+const DEFAULT_WINDOW_WIDTH: f32 = 1280.0;
+
 fn main() -> iced::Result {
     iced::application("Load!64", App::update, App::view).subscription(App::subscription).run_with(App::new)
 }
@@ -39,23 +41,15 @@ enum Message {
 
 impl App {
     fn new() -> (Self, Task<Message>) {
-        let mut library = Library::new(Box::new(CharacterSection::new));
-
         let args = cli::parse();
-
-        let games = game_loader::load_games_from_directory(&args.games_dir).expect("Error loading games");
-
-        for game in games {
-            library.add_game(game);
-        }
-
+        let mut library = Library::new(Box::new(CharacterSection::new));
+        game_loader::load_games_into(&mut library, &args.games_dir).expect("Error loading games");
         let cursor = library.get_cursor();
-
         (
             Self {
                 library,
                 cursor,
-                window_width: 1920.0,
+                window_width: DEFAULT_WINDOW_WIDTH,
             },
             Task::none(),
         )

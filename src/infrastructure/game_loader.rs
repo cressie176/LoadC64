@@ -4,8 +4,10 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::domain::game::{Game, GameId};
+use crate::domain::library::Library;
 use crate::domain::media::{Media, MediaSet, MediaType};
 use crate::domain::rom::Rom;
+use crate::domain::section::Section;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,12 +28,10 @@ struct MediaConfig {
     file: String,
 }
 
-pub fn load_games_from_directory(games_dir: &Path) -> Result<Vec<Game>, String> {
+pub fn load_games_into<S: Section + Ord>(library: &mut Library<S>, games_dir: &Path) -> Result<(), String> {
     if !games_dir.exists() {
         return Err(format!("Games directory does not exist: {}", games_dir.display()));
     }
-
-    let mut games = Vec::new();
 
     let entries = fs::read_dir(games_dir).map_err(|e| format!("Failed to read games directory: {e}"))?;
 
@@ -49,12 +49,12 @@ pub fn load_games_from_directory(games_dir: &Path) -> Result<Vec<Game>, String> 
         }
 
         match load_game_from_config(&config_path, &path) {
-            Ok(game) => games.push(game),
+            Ok(game) => library.add_game(game),
             Err(e) => eprintln!("Failed to load game from {}: {}", config_path.display(), e),
         }
     }
 
-    Ok(games)
+    Ok(())
 }
 
 fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, String> {
