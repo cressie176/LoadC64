@@ -54,9 +54,7 @@ impl App {
             return;
         };
 
-        let Some(game) = self.library.get_game(cursor) else {
-            return;
-        };
+        let game = self.library.get_game(cursor);
 
         game.visit(|_title, _year, _publisher, _notes, _media_set, roms: &[Rom]| {
             let Some(rom) = roms.first() else {

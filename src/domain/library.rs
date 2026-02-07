@@ -116,8 +116,8 @@ impl<S: Section + Ord> Library<S> {
         Some(Cursor::for_game(section, game_id))
     }
 
-    pub fn get_game(&self, cursor: &Cursor) -> Option<&Game> {
-        self.games.get(cursor.game_id())
+    pub fn get_game(&self, cursor: &Cursor) -> &Game {
+        &self.games[cursor.game_id()]
     }
 
     fn get_game_by_id(&self, id: &GameId) -> &Game {
