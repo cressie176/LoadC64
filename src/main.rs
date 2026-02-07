@@ -1,4 +1,3 @@
-use std::process::Command;
 use std::time::Duration;
 
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
@@ -14,7 +13,7 @@ use domain::cursor::Cursor;
 use domain::library::Library;
 use domain::rom::Rom;
 use domain::section::CharacterSection;
-use infrastructure::game_loader;
+use infrastructure::{game_loader, vice_emulator::ViceEmulator};
 
 const DEFAULT_WINDOW_WIDTH: f32 = 1280.0;
 
@@ -26,6 +25,7 @@ struct App {
     library: Library<CharacterSection>,
     cursor: Option<Cursor>,
     window_width: f32,
+    vice_emulator: ViceEmulator,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -45,7 +45,8 @@ impl App {
         let mut library = Library::new(Box::new(CharacterSection::new));
         game_loader::load_games_into(&mut library, &args.games_dir).expect("Error loading games");
         let cursor = library.get_cursor();
-        (Self { library, cursor, window_width: DEFAULT_WINDOW_WIDTH }, Task::none())
+        let vice_emulator = ViceEmulator::new(args.vice_path);
+        (Self { library, cursor, window_width: DEFAULT_WINDOW_WIDTH, vice_emulator }, Task::none())
     }
 
     fn update(&mut self, message: Message) {
@@ -80,58 +81,14 @@ impl App {
                 }
             }
             Message::LaunchGame => {
-                eprintln!("LaunchGame message received");
-                if let Some(cursor) = &self.cursor {
-                    eprintln!("Cursor exists");
-                    if let Some(games) = self.library.get_game_window(cursor, 0, 1) {
-                        eprintln!("Got game window, {} games", games.len());
-                        if let Some(current_game) = games.first() {
-                            eprintln!("Got current game");
-                            // Get the ROM path from the game
-                            current_game.visit(|title, _year, _publisher, _notes, _media_set, roms: &[Rom]| {
-                                eprintln!("Game: {}, ROMs: {}", title, roms.len());
-                                if let Some(rom) = roms.first() {
-                                    let rom_path = rom.path();
-                                    eprintln!("Launching VICE with ROM: {}", rom_path.display());
-
-                                    // Launch VICE
-                                    let result = Command::new("vice/bin/x64sc")
-                                        .args([
-                                            "-trapdevice8",
-                                            "-autostart-warp",
-                                            "-VICIIfull",
-                                            "-VICIIfilter",
-                                            "0",
-                                            "-VICIIglfilter",
-                                            "0",
-                                            "-VICIIdscan",
-                                            "-joydev1",
-                                            "0", // Disable joystick port 1
-                                            "-joydev2",
-                                            "1", // Enable joystick port 2
-                                            "+confirmonexit",
-                                            "-autostart",
-                                            &rom_path.to_string_lossy(),
-                                        ])
-                                        .spawn();
-
-                                    match result {
-                                        Ok(_) => eprintln!("VICE launched successfully"),
-                                        Err(e) => eprintln!("Failed to launch VICE: {e}"),
-                                    }
-                                } else {
-                                    eprintln!("No ROM found for game");
-                                }
-                            });
-                        } else {
-                            eprintln!("No current game found");
-                        }
-                    } else {
-                        eprintln!("No games in window");
+                if let Some(cursor) = &self.cursor
+                    && let Some(game) = self.library.get_game(cursor) {
+                        game.visit(|_title, _year, _publisher, _notes, _media_set, roms: &[Rom]| {
+                            if let Some(rom) = roms.first() {
+                                self.vice_emulator.launch(rom.path()).expect("Failed to launch VICE");
+                            }
+                        });
                     }
-                } else {
-                    eprintln!("No cursor");
-                }
             }
         }
     }

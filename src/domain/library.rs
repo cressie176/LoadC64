@@ -116,7 +116,11 @@ impl<S: Section + Ord> Library<S> {
         Some(Cursor::for_game(section, game_id))
     }
 
-    fn get_game(&self, id: &GameId) -> &Game {
+    pub fn get_game(&self, cursor: &Cursor) -> Option<&Game> {
+        self.games.get(cursor.game_id())
+    }
+
+    fn get_game_by_id(&self, id: &GameId) -> &Game {
         &self.games[id]
     }
 
@@ -127,10 +131,10 @@ impl<S: Section + Ord> Library<S> {
         let start_cursor = self.iterate_backwards(cursor, offset.abs(), |_| {})?;
 
         let mut games = Vec::with_capacity(count);
-        games.push(self.get_game(start_cursor.game_id()));
+        games.push(self.get_game_by_id(start_cursor.game_id()));
 
         self.iterate_forwards(&start_cursor, count - 1, |game_id| {
-            games.push(self.get_game(game_id));
+            games.push(self.get_game_by_id(game_id));
         });
 
         Some(games)
