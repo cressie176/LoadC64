@@ -1,13 +1,14 @@
-use iced::widget::{container, image, row};
+use iced::Background;
+use iced::widget::{Stack, container, image, row};
 
 use crate::domain::game::Game;
 use crate::ui::{carousel_layout::CarouselLayout, theme};
 
-pub fn create_carousel_row<'a, Message: 'static>(games: &[&Game], layout: &CarouselLayout) -> iced::widget::Row<'a, Message> {
+pub fn create_carousel_row<'a, Message: 'static>(games: &[&Game], layout: &CarouselLayout, mode: crate::Mode) -> iced::widget::Row<'a, Message> {
     let mut carousel_row = row![].spacing(CarouselLayout::spacing()).align_y(iced::Alignment::Center);
 
     for (index, game) in games.iter().enumerate() {
-        let carousel_item = create_carousel_item(game, layout, index);
+        let carousel_item = create_carousel_item(game, layout, index, mode);
         carousel_row = carousel_row.push(carousel_item);
     }
 
@@ -24,13 +25,24 @@ pub fn create_carousel_container<'a, Message: 'a>(carousel_games: iced::widget::
     })
 }
 
-fn create_carousel_item<Message>(game: &Game, layout: &CarouselLayout, index: usize) -> iced::widget::Container<'static, Message> {
+fn create_carousel_item<Message: 'static>(game: &Game, layout: &CarouselLayout, index: usize, mode: crate::Mode) -> iced::widget::Container<'static, Message> {
     let width = layout.game_width(index);
     let height = layout.game_height(index);
     let box_art_path = game.media_set().box_front_2d_thumbnail().path();
 
     let img = create_game_cover(box_art_path, width, height);
-    create_game_container(img, width, height)
+    let container = create_game_container(img, width, height);
+
+    if mode == crate::Mode::Manage && game.is_hidden() {
+        let overlay = container::Container::new(iced::widget::Space::new(iced::Length::Fixed(width), iced::Length::Fixed(height)))
+            .width(iced::Length::Fixed(width))
+            .height(iced::Length::Fixed(height))
+            .style(|_theme| container::Style { background: Some(Background::Color(theme::HIDDEN_OVERLAY_COLOR)), ..Default::default() });
+
+        container::Container::new(Stack::new().push(container).push(overlay)).width(iced::Length::Fixed(width)).height(iced::Length::Fixed(height))
+    } else {
+        container
+    }
 }
 
 fn create_game_cover(box_art_path: &std::path::Path, width: f32, height: f32) -> iced::widget::Image {

@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::domain::game::{Game, GameId};
 use crate::domain::library::Library;
@@ -9,7 +9,7 @@ use crate::domain::media::{Media, MediaSet, MediaType};
 use crate::domain::rom::Rom;
 use crate::domain::section::Section;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct GameConfig {
     id: String,
     title: String,
@@ -18,14 +18,17 @@ struct GameConfig {
     publisher: Option<String>,
     notes: Option<String>,
     media: Option<Vec<MediaConfig>>,
+    #[serde(default)]
+    hidden: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct MediaConfig {
     r#type: String,
     file: String,
 }
 
+#[allow(dead_code)]
 pub fn load_games_into<S: Section + Ord>(library: &mut Library<S>, games_dir: &Path) -> Result<(), String> {
     if !games_dir.exists() {
         return Err(format!("Games directory does not exist: {}", games_dir.display()));
@@ -61,11 +64,12 @@ fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, St
     let config: GameConfig = toml::from_str(&contents).map_err(|e| format!("Failed to parse TOML: {e}"))?;
 
     let year = config.year.and_then(|y| y.parse::<u16>().ok());
+    let hidden = config.hidden.unwrap_or(false);
 
-    let media_set = load_media_set(game_dir, config.media);
+    let media_set = load_media_set(game_dir, config.media.clone());
     let roms = load_roms(game_dir);
 
-    Ok(Game::new(GameId::new(config.id), config.title, config.sort_title, year, config.publisher, config.notes, media_set, roms))
+    Ok(Game::new(GameId::new(config.id), config.title, config.sort_title, year, config.publisher, config.notes, media_set, roms, game_dir.to_path_buf(), hidden))
 }
 
 fn get_default_box_art_path() -> PathBuf {
@@ -128,4 +132,50 @@ fn load_roms(game_dir: &Path) -> Vec<Rom> {
     }
 
     roms
+}
+
+pub fn load_all_games(games_dir: &Path) -> Result<Vec<Game>, String> {
+    if !games_dir.exists() {
+        return Err(format!("Games directory does not exist: {}", games_dir.display()));
+    }
+
+    let mut games = Vec::new();
+    let entries = fs::read_dir(games_dir).map_err(|e| format!("Failed to read games directory: {e}"))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {e}"))?;
+        let path = entry.path();
+
+        if !path.is_dir() {
+            continue;
+        }
+
+        let config_path = path.join("config.toml");
+        if !config_path.exists() {
+            continue;
+        }
+
+        match load_game_from_config(&config_path, &path) {
+            Ok(game) => games.push(game),
+            Err(e) => eprintln!("Failed to load game from {}: {}", config_path.display(), e),
+        }
+    }
+
+    Ok(games)
+}
+
+pub fn save_game_config(game: &Game) -> Result<(), String> {
+    let config_path = game.game_dir().join("config.toml");
+
+    let contents = fs::read_to_string(&config_path).map_err(|e| format!("Failed to read config file: {e}"))?;
+
+    let mut config: GameConfig = toml::from_str(&contents).map_err(|e| format!("Failed to parse TOML: {e}"))?;
+
+    config.hidden = Some(game.is_hidden());
+
+    let toml_string = toml::to_string_pretty(&config).map_err(|e| format!("Failed to serialize config: {e}"))?;
+
+    fs::write(&config_path, toml_string).map_err(|e| format!("Failed to write config: {e}"))?;
+
+    Ok(())
 }

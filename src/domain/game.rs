@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::hash::Hash;
+use std::path::{Path, PathBuf};
 
 use super::media::MediaSet;
 use super::rom::Rom;
@@ -23,6 +24,8 @@ pub struct Game {
     notes: Option<String>,
     media_set: MediaSet,
     roms: Vec<Rom>,
+    dir: PathBuf,
+    hidden: bool,
 }
 
 impl Game {
@@ -36,8 +39,10 @@ impl Game {
         notes: Option<String>,
         media_set: MediaSet,
         roms: Vec<Rom>,
+        dir: PathBuf,
+        hidden: bool,
     ) -> Self {
-        Self { id, title, sort_key, year, publisher, notes, media_set, roms }
+        Self { id, title, sort_key, year, publisher, notes, media_set, roms, dir, hidden }
     }
 
     pub const fn id(&self) -> &GameId {
@@ -75,6 +80,22 @@ impl Game {
     pub fn starts_with(&self, c: char) -> bool {
         self.sort_key.starts_with(c)
     }
+
+    pub fn game_dir(&self) -> &Path {
+        &self.dir
+    }
+
+    pub const fn is_hidden(&self) -> bool {
+        self.hidden
+    }
+
+    pub const fn set_hidden(&mut self, hidden: bool) {
+        self.hidden = hidden;
+    }
+
+    pub fn sort_key(&self) -> &str {
+        &self.sort_key
+    }
 }
 
 impl Ord for Game {
@@ -91,7 +112,7 @@ impl PartialOrd for Game {
 
 #[cfg(test)]
 pub(super) fn test_game(id: &str, title: &str, sort_key: &str) -> Game {
-    Game::new(GameId::new(id.to_string()), title.to_string(), sort_key.to_string(), None, None, None, MediaSet::default(), Vec::new())
+    Game::new(GameId::new(id.to_string()), title.to_string(), sort_key.to_string(), None, None, None, MediaSet::default(), Vec::new(), PathBuf::from("/tmp/test"), false)
 }
 
 #[cfg(test)]
@@ -123,6 +144,8 @@ mod tests {
             Some("Classic adventure game".to_string()),
             MediaSet::default(),
             Vec::new(),
+            PathBuf::from("/tmp/test"),
+            false,
         );
 
         assert_eq!(game.title(), "Monkey Island");
@@ -131,6 +154,7 @@ mod tests {
         assert_eq!(game.notes(), Some("Classic adventure game"));
         assert!(game.media_set().box_front_2d().is_none());
         assert!(game.roms().is_empty());
+        assert!(!game.is_hidden());
     }
 
     #[test]
