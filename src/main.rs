@@ -8,12 +8,14 @@ use iced::{Element, Task};
 mod cli;
 mod domain;
 mod infrastructure;
+mod ui;
 
 use domain::cursor::Cursor;
 use domain::library::Library;
 use domain::rom::Rom;
 use domain::section::CharacterSection;
 use infrastructure::{game_loader, vice_emulator::ViceEmulator};
+use ui::carousel_layout::CarouselLayout;
 
 const DEFAULT_WINDOW_WIDTH: f32 = 1280.0;
 
@@ -104,36 +106,17 @@ impl App {
 
     #[allow(clippy::too_many_lines)]
     fn view(&self) -> Element<'_, Message> {
-        const REGULAR_GAME_CONTAINER_WIDTH: f32 = 240.0;
-        const CURRENT_GAME_CONTAINER_WIDTH: f32 = REGULAR_GAME_CONTAINER_WIDTH * 1.2;
-        const GAME_CONTAINER_SPACING: f32 = 10.0;
-        const CONTAINER_HEIGHT: f32 = 320.0;
+        let layout = CarouselLayout::new(self.window_width);
 
-        let window_width = self.window_width;
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let number_of_regular_games_each_side = (((window_width - CURRENT_GAME_CONTAINER_WIDTH) / 2.0) / (REGULAR_GAME_CONTAINER_WIDTH + GAME_CONTAINER_SPACING)).floor() as usize;
-
-        #[allow(clippy::cast_precision_loss)]
-        let total_carousel_width = (number_of_regular_games_each_side as f32 * 2.0).mul_add(REGULAR_GAME_CONTAINER_WIDTH + GAME_CONTAINER_SPACING, CURRENT_GAME_CONTAINER_WIDTH);
-
-        let canvas_padding = (window_width - total_carousel_width) / 2.0;
-
-        let mut carousel_row = row![].spacing(GAME_CONTAINER_SPACING).align_y(iced::Alignment::Center);
+        let mut carousel_row = row![].spacing(CarouselLayout::spacing()).align_y(iced::Alignment::Center);
 
         if let Some(cursor) = &self.cursor {
-            let total_games = number_of_regular_games_each_side * 2 + 1;
-            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let offset = -(number_of_regular_games_each_side as i32);
-            let games = self.library.get_game_window(cursor, offset, total_games);
+            let games = self.library.get_game_window(cursor, layout.offset(), layout.number_of_games());
 
             if let Some(games) = games {
-                let current_index = number_of_regular_games_each_side;
-
                 for (index, game) in games.iter().enumerate() {
-                    let is_current = index == current_index;
-                    let width = if is_current { CURRENT_GAME_CONTAINER_WIDTH } else { REGULAR_GAME_CONTAINER_WIDTH };
-                    let height = if is_current { CONTAINER_HEIGHT * 1.2 } else { CONTAINER_HEIGHT };
-
+                    let width = layout.game_width(index);
+                    let height = layout.game_height(index);
                     let box_image = game.visit(|_title, _year, _publisher, _notes, media_set, _roms| media_set.box_front_2d_thumbnail().map(|media| media.path().clone()));
 
                     let game_container = box_image.map_or_else(
@@ -161,26 +144,23 @@ impl App {
             }
         }
 
-        let carousel = container(carousel_row).padding(iced::Padding { top: 0.0, right: canvas_padding, bottom: 0.0, left: canvas_padding }).center_x(iced::Fill).style(|_theme| {
-            container::Style {
+        let carousel = container(carousel_row)
+            .padding(iced::Padding { top: 0.0, right: layout.canvas_padding(), bottom: 0.0, left: layout.canvas_padding() })
+            .center_x(iced::Fill)
+            .style(|_theme| container::Style {
                 background: Some(iced::Background::Color(iced::Color::BLACK)),
                 border: iced::Border { color: iced::Color::BLACK, width: 0.0, radius: iced::border::Radius::from(0.0) },
                 ..Default::default()
-            }
-        });
+            });
 
         #[allow(clippy::option_if_let_else)]
         let game_info: Element<'_, Message> = if let Some(cursor) = &self.cursor {
-            let total_games = number_of_regular_games_each_side * 2 + 1;
-            let current_index = number_of_regular_games_each_side;
-            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let offset = -(number_of_regular_games_each_side as i32);
-            let games = self.library.get_game_window(cursor, offset, total_games);
+            let games = self.library.get_game_window(cursor, layout.offset(), layout.number_of_games());
 
             #[allow(clippy::option_if_let_else)]
             if let Some(games) = games {
                 #[allow(clippy::option_if_let_else)]
-                if let Some(current_game) = games.get(current_index) {
+                if let Some(current_game) = games.get(layout.current_game_index()) {
                     let (title, metadata) = current_game.visit(|title, year, publisher, _notes, _media_set, _roms| {
                         let mut metadata_parts = Vec::new();
                         if let Some(y) = year {
