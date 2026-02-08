@@ -166,20 +166,18 @@ impl App {
 
         let content = column![carousel, info].spacing(theme::CONTENT_SPACING);
 
+        let centered_content = container(content).center_x(iced::Fill).center_y(iced::Fill);
+
         let view: Element<'_, Message> = if self.mode == Mode::Manage {
             let mode_text = text("Management Mode").size(theme::METADATA_FONT_SIZE).color(theme::TEXT_COLOR);
             let mode_indicator = container(mode_text).padding(10).align_x(iced::alignment::Horizontal::Right).width(iced::Fill);
 
-            Stack::new().push(content).push(mode_indicator).into()
+            Stack::new().push(centered_content).push(mode_indicator).into()
         } else {
-            content.into()
+            centered_content.into()
         };
 
-        container(view)
-            .center_x(iced::Fill)
-            .center_y(iced::Fill)
-            .style(|_theme| container::Style { background: Some(iced::Background::Color(theme::BACKGROUND_COLOR)), ..Default::default() })
-            .into()
+        container(view).center_x(iced::Fill).style(|_theme| container::Style { background: Some(iced::Background::Color(theme::BACKGROUND_COLOR)), ..Default::default() }).into()
     }
 
     fn get_carousel_games(&self, layout: &CarouselLayout) -> (iced::widget::Row<'_, Message>, Element<'_, Message>) {
