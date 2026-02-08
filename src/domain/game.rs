@@ -40,19 +40,32 @@ impl Game {
         Self { id, title, sort_key, year, publisher, notes, media_set, roms }
     }
 
-    pub fn visit<F, R>(&self, visitor: F) -> R
-    where
-        F: FnOnce(&str, Option<u16>, Option<&str>, Option<&str>, &MediaSet, &[Rom]) -> R,
-    {
-        visitor(&self.title, self.year, self.publisher.as_deref(), self.notes.as_deref(), &self.media_set, &self.roms)
-    }
-
     pub const fn id(&self) -> &GameId {
         &self.id
     }
 
     pub fn title(&self) -> &str {
         &self.title
+    }
+
+    pub const fn year(&self) -> Option<u16> {
+        self.year
+    }
+
+    pub fn publisher(&self) -> Option<&str> {
+        self.publisher.as_deref()
+    }
+
+    pub fn notes(&self) -> Option<&str> {
+        self.notes.as_deref()
+    }
+
+    pub const fn media_set(&self) -> &MediaSet {
+        &self.media_set
+    }
+
+    pub fn roms(&self) -> &[Rom] {
+        &self.roms
     }
 
     pub fn first_character(&self) -> char {
@@ -100,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    fn test_visitor_with_all_fields() {
+    fn test_accessor_with_all_fields() {
         let game = Game::new(
             GameId::new("1".to_string()),
             "Monkey Island".to_string(),
@@ -112,30 +125,23 @@ mod tests {
             Vec::new(),
         );
 
-        let result = game.visit(|title, year, publisher, notes, media_set, roms| {
-            assert_eq!(title, "Monkey Island");
-            assert_eq!(year, Some(1990));
-            assert_eq!(publisher, Some("LucasArts"));
-            assert_eq!(notes, Some("Classic adventure game"));
-            assert!(media_set.box_front_2d().is_none());
-            assert!(roms.is_empty());
-            "visited"
-        });
-
-        assert_eq!(result, "visited");
+        assert_eq!(game.title(), "Monkey Island");
+        assert_eq!(game.year(), Some(1990));
+        assert_eq!(game.publisher(), Some("LucasArts"));
+        assert_eq!(game.notes(), Some("Classic adventure game"));
+        assert!(game.media_set().box_front_2d().is_none());
+        assert!(game.roms().is_empty());
     }
 
     #[test]
-    fn test_visitor_with_none_fields() {
+    fn test_accessor_with_none_fields() {
         let game = test_game("1", "Unknown Game", "unknown-game");
 
-        game.visit(|title, year, publisher, notes, media_set, roms| {
-            assert_eq!(title, "Unknown Game");
-            assert_eq!(year, None);
-            assert_eq!(publisher, None);
-            assert_eq!(notes, None);
-            assert!(media_set.box_front_2d().is_none());
-            assert!(roms.is_empty());
-        });
+        assert_eq!(game.title(), "Unknown Game");
+        assert_eq!(game.year(), None);
+        assert_eq!(game.publisher(), None);
+        assert_eq!(game.notes(), None);
+        assert!(game.media_set().box_front_2d().is_none());
+        assert!(game.roms().is_empty());
     }
 }

@@ -12,7 +12,6 @@ mod ui;
 
 use domain::cursor::Cursor;
 use domain::library::Library;
-use domain::rom::Rom;
 use domain::section::CharacterSection;
 use infrastructure::{game_loader, vice_emulator::ViceEmulator};
 use ui::carousel_layout::CarouselLayout;
@@ -58,13 +57,11 @@ impl App {
 
         let game = self.library.get_game(cursor);
 
-        game.visit(|_title, _year, _publisher, _notes, _media_set, roms: &[Rom]| {
-            let Some(rom) = roms.first() else {
-                return;
-            };
+        let Some(rom) = game.roms().first() else {
+            return;
+        };
 
-            self.vice_emulator.launch(rom.path()).expect("Failed to launch VICE");
-        });
+        self.vice_emulator.launch(rom.path()).expect("Failed to launch VICE");
     }
 
     fn update(&mut self, message: Message) {
@@ -117,7 +114,7 @@ impl App {
                 for (index, game) in games.iter().enumerate() {
                     let width = layout.game_width(index);
                     let height = layout.game_height(index);
-                    let box_image = game.visit(|_title, _year, _publisher, _notes, media_set, _roms| media_set.box_front_2d_thumbnail().map(|media| media.path().clone()));
+                    let box_image = game.media_set().box_front_2d_thumbnail().map(|media| media.path().clone());
 
                     let game_container = box_image.map_or_else(
                         || {
@@ -161,19 +158,16 @@ impl App {
             if let Some(games) = games {
                 #[allow(clippy::option_if_let_else)]
                 if let Some(current_game) = games.get(layout.current_game_index()) {
-                    let (title, metadata) = current_game.visit(|title, year, publisher, _notes, _media_set, _roms| {
-                        let mut metadata_parts = Vec::new();
-                        if let Some(y) = year {
-                            metadata_parts.push(y.to_string());
-                        }
-                        if let Some(p) = publisher {
-                            metadata_parts.push(p.to_string());
-                        }
+                    let title = current_game.title();
+                    let mut metadata_parts = Vec::new();
+                    if let Some(year) = current_game.year() {
+                        metadata_parts.push(year.to_string());
+                    }
+                    if let Some(publisher) = current_game.publisher() {
+                        metadata_parts.push(publisher.to_string());
+                    }
 
-                        let metadata_text = if metadata_parts.is_empty() { None } else { Some(metadata_parts.join(" - ")) };
-
-                        (title.to_string(), metadata_text)
-                    });
+                    let metadata = if metadata_parts.is_empty() { None } else { Some(metadata_parts.join(" - ")) };
 
                     let info: iced::widget::Column<'_, Message> = if let Some(metadata_text) = metadata {
                         column![text(title).size(30).color(iced::Color::WHITE), text(metadata_text).size(18).color(iced::Color::WHITE)]
