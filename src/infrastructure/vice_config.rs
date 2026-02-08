@@ -117,16 +117,18 @@ impl ViceConfig {
         };
 
         if let Some(inherits) = &file.inherits
-            && let Some(root) = games_root {
-                let profiles_dir = root.join("profiles");
-                for profile_name in inherits {
-                    let profile_path = profiles_dir.join(format!("{profile_name}.toml"));
-                    if profile_path.exists()
-                        && let Some(profile_config) = Self::load_profile(&profile_path)? {
-                            config.merge(&profile_config);
-                        }
+            && let Some(root) = games_root
+        {
+            let profiles_dir = root.join("profiles");
+            for profile_name in inherits {
+                let profile_path = profiles_dir.join(format!("{profile_name}.toml"));
+                if profile_path.exists()
+                    && let Some(profile_config) = Self::load_profile(&profile_path)?
+                {
+                    config.merge(&profile_config);
                 }
             }
+        }
 
         let file_config = Self { args: file.vice.arg.into_iter().map(|a| a.values).collect() };
         config.merge(&file_config);
