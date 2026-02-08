@@ -11,15 +11,9 @@ impl ViceEmulator {
         Self { executable_path }
     }
 
-    pub fn launch(&self, rom_path: &Path) -> Result<(), String> {
-        let mut config = ViceConfig::load_default()?;
-
-        // Load and merge game-specific override if it exists
-        if let Some(game_dir) = rom_path.parent()
-            && let Some(game_override) = ViceConfig::load_game_override(game_dir)?
-        {
-            config.merge(&game_override);
-        }
+    pub fn launch(&self, games_root: &Path, rom_path: &Path) -> Result<(), String> {
+        let game_dir = rom_path.parent().ok_or_else(|| "Failed to get game directory".to_string())?;
+        let config = ViceConfig::load_with_profiles(games_root, game_dir)?;
 
         self.launch_with_config(rom_path, &config)
     }

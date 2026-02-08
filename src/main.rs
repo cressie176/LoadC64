@@ -1,5 +1,6 @@
 use iced::widget::{column, container, row, text};
 use iced::{Element, Task};
+use std::path::PathBuf;
 
 mod cli;
 mod domain;
@@ -32,6 +33,7 @@ struct App {
     vice_emulator: ViceEmulator,
     mode: Mode,
     all_games: Vec<Game>,
+    games_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -63,7 +65,7 @@ impl App {
         let cursor = library.get_cursor();
         let vice_emulator = ViceEmulator::new(args.vice_path);
 
-        (Self { library, cursor, window_width: DEFAULT_WINDOW_WIDTH, vice_emulator, mode: Mode::Browse, all_games }, Task::none())
+        (Self { library, cursor, window_width: DEFAULT_WINDOW_WIDTH, vice_emulator, mode: Mode::Browse, all_games, games_dir: args.games_dir }, Task::none())
     }
 
     fn update(&mut self, message: Message) {
@@ -154,7 +156,7 @@ impl App {
             return;
         };
 
-        self.vice_emulator.launch(rom.path()).expect("Failed to launch VICE");
+        self.vice_emulator.launch(&self.games_dir, rom.path()).expect("Failed to launch VICE");
     }
 
     fn view(&self) -> Element<'_, Message> {
