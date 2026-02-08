@@ -1,4 +1,4 @@
-use iced::widget::{column, container, row, text};
+use iced::widget::{Stack, column, container, row, text};
 use iced::{Element, Task};
 use std::path::PathBuf;
 
@@ -164,15 +164,18 @@ impl App {
         let (carousel_games, info) = self.get_carousel_games(&layout);
         let carousel = carousel::create_carousel_container(carousel_games, &layout);
 
-        let content = if self.mode == Mode::Manage {
+        let content = column![carousel, info].spacing(theme::CONTENT_SPACING);
+
+        let view: Element<'_, Message> = if self.mode == Mode::Manage {
             let mode_text = text("Management Mode").size(theme::METADATA_FONT_SIZE).color(theme::TEXT_COLOR);
-            let mode_indicator = container(mode_text).center_x(iced::Fill).padding(10);
-            column![mode_indicator, carousel, info].spacing(theme::CONTENT_SPACING)
+            let mode_indicator = container(mode_text).padding(10).align_x(iced::alignment::Horizontal::Right).width(iced::Fill);
+
+            Stack::new().push(content).push(mode_indicator).into()
         } else {
-            column![carousel, info].spacing(theme::CONTENT_SPACING)
+            content.into()
         };
 
-        container(content)
+        container(view)
             .center_x(iced::Fill)
             .center_y(iced::Fill)
             .style(|_theme| container::Style { background: Some(iced::Background::Color(theme::BACKGROUND_COLOR)), ..Default::default() })
