@@ -1,3 +1,4 @@
+use crate::infrastructure::vice_config::ViceConfig;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -11,26 +12,24 @@ impl ViceEmulator {
     }
 
     pub fn launch(&self, rom_path: &Path) -> Result<(), String> {
-        Command::new(&self.executable_path)
-            .args([
-                "-trapdevice8",
-                "-autostart-warp",
-                "-VICIIfull",
-                "-VICIIfilter",
-                "0",
-                "-VICIIglfilter",
-                "0",
-                "-VICIIdscan",
-                "-joydev1",
-                "0",
-                "-joydev2",
-                "1",
-                "+confirmonexit",
-                "-autostart",
-                &rom_path.to_string_lossy(),
-            ])
-            .spawn()
-            .map_err(|e| format!("Failed to launch VICE: {e}"))?;
+        let mut config = ViceConfig::load_default()?;
+
+        // Load and merge game-specific override if it exists
+        if let Some(game_dir) = rom_path.parent()
+            && let Some(game_override) = ViceConfig::load_game_override(game_dir)? {
+                config.merge(&game_override);
+            }
+
+        self.launch_with_config(rom_path, &config)
+    }
+
+    pub fn launch_with_config(&self, rom_path: &Path, config: &ViceConfig) -> Result<(), String> {
+        let mut args = config.to_command_args();
+
+        args.push("-autostart".to_string());
+        args.push(rom_path.to_string_lossy().to_string());
+
+        Command::new(&self.executable_path).args(args).spawn().map_err(|e| format!("Failed to launch VICE: {e}"))?;
 
         Ok(())
     }

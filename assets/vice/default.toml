@@ -1,0 +1,11 @@
+args = [
+  ["-trapdevice8"],
+  ["-autostart-warp"],
+  ["-VICIIfull"],
+  ["-VICIIfilter", "0"],
+  ["-VICIIglfilter", "0"],
+  ["-VICIIdscan"],
+  ["-joydev1", "0"],
+  ["-joydev2", "1"],
+  ["+confirmonexit"],
+]

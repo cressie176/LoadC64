@@ -1,0 +1,8 @@
+args = [
+  ["-joydev1", "1"],
+  ["-VICIIfilter", "1"],
+  ["!autostart-warp"],
+  ["!VICIIdscan"],
+  ["-sound"],
+  ["-soundrate", "48000"],
+]

@@ -10,7 +10,6 @@ use crate::domain::rom::Rom;
 use crate::domain::section::Section;
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct GameConfig {
     id: String,
     title: String,
@@ -22,7 +21,6 @@ struct GameConfig {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "kebab-case")]
 struct MediaConfig {
     r#type: String,
     file: String,
@@ -43,7 +41,7 @@ pub fn load_games_into<S: Section + Ord>(library: &mut Library<S>, games_dir: &P
             continue;
         }
 
-        let config_path = path.join("config.json");
+        let config_path = path.join("config.toml");
         if !config_path.exists() {
             continue;
         }
@@ -60,7 +58,7 @@ pub fn load_games_into<S: Section + Ord>(library: &mut Library<S>, games_dir: &P
 fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, String> {
     let contents = fs::read_to_string(config_path).map_err(|e| format!("Failed to read config file: {e}"))?;
 
-    let config: GameConfig = serde_json::from_str(&contents).map_err(|e| format!("Failed to parse JSON: {e}"))?;
+    let config: GameConfig = toml::from_str(&contents).map_err(|e| format!("Failed to parse TOML: {e}"))?;
 
     let year = config.year.and_then(|y| y.parse::<u16>().ok());
 
