@@ -75,7 +75,7 @@ fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, St
 fn get_default_box_art_path() -> PathBuf {
     let exe_dir = std::env::current_exe().expect("Failed to get executable path").parent().expect("Failed to get executable directory").to_path_buf();
 
-    exe_dir.join("assets").join("default-box-art.png")
+    exe_dir.join("assets").join("media").join("default-2d-box-front-thumbnail.png")
 }
 
 fn load_media_set(game_dir: &Path, media_configs: Option<Vec<MediaConfig>>) -> MediaSet {

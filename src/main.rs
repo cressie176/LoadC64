@@ -11,8 +11,8 @@ use domain::cursor::Cursor;
 use domain::game::Game;
 use domain::library::Library;
 use domain::section::CharacterSection;
-use infrastructure::{game_loader, vice_emulator::ViceEmulator};
-use ui::{carousel, carousel_layout::CarouselLayout, game_info, input, theme};
+use infrastructure::{game_loader, vice_emulator::ViceEmulator, vice_monitor::ViceMonitor};
+use ui::{carousel, carousel_layout::CarouselLayout, game_info, input, now_playing, theme};
 
 const DEFAULT_WINDOW_WIDTH: f32 = 1280.0;
 
@@ -20,10 +20,11 @@ fn main() -> iced::Result {
     iced::application("Load!64", App::update, App::view).subscription(App::subscription).run_with(App::new)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mode {
     Browse,
     Manage,
+    Playing { game_name: String },
 }
 
 struct App {
@@ -31,12 +32,13 @@ struct App {
     cursor: Option<Cursor>,
     window_width: f32,
     vice_emulator: ViceEmulator,
+    vice_monitor: Option<ViceMonitor>,
     mode: Mode,
     all_games: Vec<Game>,
     games_dir: PathBuf,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Message {
     WindowResized(f32, f32),
     NextGame,
@@ -45,6 +47,8 @@ enum Message {
     PreviousSection,
     ToSection(char),
     LaunchGame,
+    GameLaunched(String),
+    QuitGame,
     ToggleMode,
     HideGame,
 }
@@ -65,10 +69,10 @@ impl App {
         let cursor = library.get_cursor();
         let vice_emulator = ViceEmulator::new(args.vice_path);
 
-        (Self { library, cursor, window_width: DEFAULT_WINDOW_WIDTH, vice_emulator, mode: Mode::Browse, all_games, games_dir: args.games_dir }, Task::none())
+        (Self { library, cursor, window_width: DEFAULT_WINDOW_WIDTH, vice_emulator, vice_monitor: None, mode: Mode::Browse, all_games, games_dir: args.games_dir }, Task::none())
     }
 
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::WindowResized(width, _height) => {
                 self.window_width = width;
@@ -92,18 +96,30 @@ impl App {
                 }
             }
             Message::LaunchGame => {
-                self.launch_current_game();
+                return self.launch_current_game();
+            }
+            Message::GameLaunched(game_name) => {
+                self.vice_monitor = Some(ViceMonitor::new("127.0.0.1:6510".to_string()));
+                self.mode = Mode::Playing { game_name };
+            }
+            Message::QuitGame => {
+                if let Some(monitor) = &self.vice_monitor {
+                    monitor.send_quit();
+                }
+                self.vice_monitor = None;
+                self.mode = Mode::Browse;
             }
             Message::ToggleMode => {
-                self.mode = match self.mode {
+                self.mode = match &self.mode {
                     Mode::Browse => Mode::Manage,
                     Mode::Manage => Mode::Browse,
+                    Mode::Playing { .. } => return Task::none(),
                 };
                 self.rebuild_library();
             }
             Message::HideGame => {
                 if self.mode != Mode::Manage {
-                    return;
+                    return Task::none();
                 }
 
                 if let Some(cursor) = &self.cursor {
@@ -122,6 +138,8 @@ impl App {
                 }
             }
         }
+
+        Task::none()
     }
 
     fn rebuild_library(&mut self) {
@@ -145,21 +163,32 @@ impl App {
         }
     }
 
-    fn launch_current_game(&self) {
+    fn launch_current_game(&self) -> Task<Message> {
         let Some(cursor) = &self.cursor else {
-            return;
+            return Task::none();
         };
 
         let game = self.library.get_game(cursor);
+        let game_name = game.title().to_string();
 
         let Some(rom) = game.roms().first() else {
-            return;
+            return Task::none();
         };
 
         self.vice_emulator.launch(&self.games_dir, rom.path()).expect("Failed to launch VICE");
+
+        Task::done(Message::GameLaunched(game_name))
     }
 
     fn view(&self) -> Element<'_, Message> {
+        if let Mode::Playing { game_name } = &self.mode {
+            let content = now_playing::view(game_name, Message::QuitGame);
+            return container(content)
+                .center_x(iced::Fill)
+                .style(|_theme| container::Style { background: Some(iced::Background::Color(theme::BACKGROUND_COLOR)), ..Default::default() })
+                .into();
+        }
+
         let layout = CarouselLayout::new(self.window_width);
         let (carousel_games, info) = self.get_carousel_games(&layout);
         let carousel = carousel::create_carousel_container(carousel_games, &layout);
@@ -189,7 +218,7 @@ impl App {
                 if let Some(current_game) = games.get(layout.current_game_index()) {
                     info = game_info::create_game_info(current_game);
                 }
-                carousel::create_carousel_row(&games, layout, self.mode)
+                carousel::create_carousel_row(&games, layout, &self.mode)
             } else {
                 row![].spacing(CarouselLayout::spacing()).align_y(iced::Alignment::Center)
             }

@@ -21,6 +21,10 @@ impl ViceEmulator {
     pub fn launch_with_config(&self, rom_path: &Path, config: &ViceConfig) -> Result<(), String> {
         let mut args = config.to_command_args();
 
+        args.push("-remotemonitor".to_string());
+        args.push("-remotemonitoraddress".to_string());
+        args.push("127.0.0.1:6510".to_string());
+
         args.push("-autostart".to_string());
         args.push(rom_path.to_string_lossy().to_string());
 
