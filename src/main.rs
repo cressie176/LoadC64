@@ -78,6 +78,15 @@ impl App {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
+        if matches!(self.mode, Mode::Playing { .. })
+            && let Some(monitor) = &self.vice_monitor
+            && monitor.check_disconnected()
+        {
+            self.vice_monitor = None;
+            self.mode = Mode::Browse;
+            return Task::none();
+        }
+
         match message {
             Message::WindowResized(width, _height) => {
                 self.window_width = width;
@@ -266,6 +275,8 @@ impl App {
         let gamepad_events =
             iced::Subscription::run(|| input::gamepad_worker(Message::PreviousGame, Message::NextGame, Message::PreviousSection, Message::NextSection, Message::LaunchGame));
 
-        iced::Subscription::batch(vec![window_events, keyboard_events, gamepad_events])
+        let subscriptions = vec![window_events, keyboard_events, gamepad_events];
+
+        iced::Subscription::batch(subscriptions)
     }
 }
