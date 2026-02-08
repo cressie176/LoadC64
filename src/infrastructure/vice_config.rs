@@ -2,6 +2,21 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct ViceConfigFile {
+    vice: ViceSection,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ViceSection {
+    arg: Vec<ViceArg>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ViceArg {
+    values: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ViceConfig {
     pub args: Vec<Vec<String>>,
 }
@@ -56,7 +71,8 @@ impl ViceConfig {
 
     pub fn load_default() -> Result<Self, String> {
         let toml_str = include_str!("../../assets/vice/default.toml");
-        toml::from_str(toml_str).map_err(|e| e.to_string())
+        let file: ViceConfigFile = toml::from_str(toml_str).map_err(|e| e.to_string())?;
+        Ok(Self { args: file.vice.arg.into_iter().map(|a| a.values).collect() })
     }
 
     pub fn load_game_override(game_dir: &Path) -> Result<Option<Self>, String> {
@@ -65,7 +81,8 @@ impl ViceConfig {
             return Ok(None);
         }
         let toml_str = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-        toml::from_str(&toml_str).map(Some).map_err(|e| e.to_string())
+        let file: ViceConfigFile = toml::from_str(&toml_str).map_err(|e| e.to_string())?;
+        Ok(Some(Self { args: file.vice.arg.into_iter().map(|a| a.values).collect() }))
     }
 }
 

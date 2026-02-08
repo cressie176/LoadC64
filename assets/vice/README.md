@@ -16,11 +16,14 @@ To customize VICE settings for a specific game:
 ### Override Format
 
 ```toml
-args = [
-  ["-joydev1", "1"],           # Replace: changes existing argument
-  ["!-autostart-warp"],        # Remove: deletes argument from defaults
-  ["-sound"],                  # Add: adds new argument not in defaults
-]
+[[vice.arg]]
+values = ["-joydev1", "1"]
+
+[[vice.arg]]
+values = ["!-autostart-warp"]
+
+[[vice.arg]]
+values = ["-sound"]
 ```
 
 ### How Merging Works
@@ -38,28 +41,35 @@ When a game-specific override exists:
 
 #### Remove warp mode for a specific game
 ```toml
-args = [
-  ["!-autostart-warp"],
-]
+[[vice.arg]]
+values = ["!-autostart-warp"]
 ```
 
 #### Change joystick configuration
 ```toml
-args = [
-  ["-joydev1", "1"],
-  ["-joydev2", "0"],
-]
+[[vice.arg]]
+values = ["-joydev1", "1"]
+
+[[vice.arg]]
+values = ["-joydev2", "0"]
 ```
 
 #### Complex override
 ```toml
-args = [
-  ["-joydev1", "2"],           # Replace joystick setting
-  ["!-autostart-warp"],        # Remove warp mode
-  ["!-VICIIdscan"],           # Remove double-scan
-  ["-sound"],                  # Add sound
-  ["-soundrate", "48000"],     # Add custom sound rate
-]
+[[vice.arg]]
+values = ["-joydev1", "2"]
+
+[[vice.arg]]
+values = ["!-autostart-warp"]
+
+[[vice.arg]]
+values = ["!-VICIIdscan"]
+
+[[vice.arg]]
+values = ["-sound"]
+
+[[vice.arg]]
+values = ["-soundrate", "48000"]
 ```
 
 ## Special Handling

@@ -1,8 +1,17 @@
-args = [
-  ["-joydev1", "1"],
-  ["-VICIIfilter", "1"],
-  ["!autostart-warp"],
-  ["!VICIIdscan"],
-  ["-sound"],
-  ["-soundrate", "48000"],
-]
+[[vice.arg]]
+values = ["-joydev1", "1"]
+
+[[vice.arg]]
+values = ["-VICIIfilter", "1"]
+
+[[vice.arg]]
+values = ["!autostart-warp"]
+
+[[vice.arg]]
+values = ["!VICIIdscan"]
+
+[[vice.arg]]
+values = ["-sound"]
+
+[[vice.arg]]
+values = ["-soundrate", "48000"]

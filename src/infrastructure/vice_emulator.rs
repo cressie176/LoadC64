@@ -16,9 +16,10 @@ impl ViceEmulator {
 
         // Load and merge game-specific override if it exists
         if let Some(game_dir) = rom_path.parent()
-            && let Some(game_override) = ViceConfig::load_game_override(game_dir)? {
-                config.merge(&game_override);
-            }
+            && let Some(game_override) = ViceConfig::load_game_override(game_dir)?
+        {
+            config.merge(&game_override);
+        }
 
         self.launch_with_config(rom_path, &config)
     }

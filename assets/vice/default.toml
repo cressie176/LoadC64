@@ -1,11 +1,26 @@
-args = [
-  ["-trapdevice8"],
-  ["-autostart-warp"],
-  ["-VICIIfull"],
-  ["-VICIIfilter", "0"],
-  ["-VICIIglfilter", "0"],
-  ["-VICIIdscan"],
-  ["-joydev1", "0"],
-  ["-joydev2", "1"],
-  ["+confirmonexit"],
-]
+[[vice.arg]]
+values = ["-trapdevice8"]
+
+[[vice.arg]]
+values = ["-autostart-warp"]
+
+[[vice.arg]]
+values = ["-VICIIfull"]
+
+[[vice.arg]]
+values = ["-VICIIfilter", "0"]
+
+[[vice.arg]]
+values = ["-VICIIglfilter", "0"]
+
+[[vice.arg]]
+values = ["-VICIIdscan"]
+
+[[vice.arg]]
+values = ["-joydev1", "0"]
+
+[[vice.arg]]
+values = ["-joydev2", "1"]
+
+[[vice.arg]]
+values = ["+confirmonexit"]
