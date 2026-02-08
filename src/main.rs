@@ -57,6 +57,11 @@ impl App {
     fn new() -> (Self, Task<Message>) {
         let args = cli::parse();
 
+        if !args.vice_path.exists() {
+            eprintln!("VICE binary not found: {}", args.vice_path.display());
+            std::process::exit(1);
+        }
+
         let all_games = game_loader::load_all_games(&args.games_dir).expect("Error loading games");
 
         let mut library = Library::new(Box::new(CharacterSection::new));
@@ -175,7 +180,10 @@ impl App {
             return Task::none();
         };
 
-        self.vice_emulator.launch(&self.games_dir, rom.path()).expect("Failed to launch VICE");
+        if let Err(e) = self.vice_emulator.launch(&self.games_dir, rom.path()) {
+            eprintln!("Failed to launch VICE: {e}");
+            return Task::none();
+        }
 
         Task::done(Message::GameLaunched(game_name))
     }

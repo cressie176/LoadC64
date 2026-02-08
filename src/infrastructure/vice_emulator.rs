@@ -19,6 +19,13 @@ impl ViceEmulator {
     }
 
     pub fn launch_with_config(&self, rom_path: &Path, config: &ViceConfig) -> Result<(), String> {
+        let absolute_vice_path = self.executable_path.canonicalize().unwrap_or_else(|_| self.executable_path.clone());
+        let absolute_rom_path = rom_path.canonicalize().unwrap_or_else(|_| rom_path.to_path_buf());
+
+        if !self.executable_path.exists() {
+            return Err(format!("VICE not found: {}", absolute_vice_path.display(),));
+        }
+
         let mut args = config.to_command_args();
 
         args.push("-remotemonitor".to_string());
@@ -28,7 +35,15 @@ impl ViceEmulator {
         args.push("-autostart".to_string());
         args.push(rom_path.to_string_lossy().to_string());
 
-        Command::new(&self.executable_path).args(args).spawn().map_err(|e| format!("Failed to launch VICE: {e}"))?;
+        Command::new(&self.executable_path).args(args).spawn().map_err(|e| {
+            format!(
+                "Failed to launch VICE: {}\n  VICE binary: {}\n  Absolute path: {}\n  ROM path: {}",
+                e,
+                self.executable_path.display(),
+                absolute_vice_path.display(),
+                absolute_rom_path.display()
+            )
+        })?;
 
         Ok(())
     }
