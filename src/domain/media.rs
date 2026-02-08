@@ -29,10 +29,10 @@ impl Media {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MediaSet {
     box_front_2d: Option<Media>,
-    box_front_2d_thumbnail: Option<Media>,
+    box_front_2d_thumbnail: Media,
     screenshot_loading: Option<Media>,
     screenshot_title: Option<Media>,
     screenshot_gameplay: Option<Media>,
@@ -41,7 +41,7 @@ pub struct MediaSet {
 impl MediaSet {
     pub const fn new(
         box_front_2d: Option<Media>,
-        box_front_2d_thumbnail: Option<Media>,
+        box_front_2d_thumbnail: Media,
         screenshot_loading: Option<Media>,
         screenshot_title: Option<Media>,
         screenshot_gameplay: Option<Media>,
@@ -53,8 +53,8 @@ impl MediaSet {
         self.box_front_2d.as_ref()
     }
 
-    pub const fn box_front_2d_thumbnail(&self) -> Option<&Media> {
-        self.box_front_2d_thumbnail.as_ref()
+    pub const fn box_front_2d_thumbnail(&self) -> &Media {
+        &self.box_front_2d_thumbnail
     }
 
     pub const fn screenshot_loading(&self) -> Option<&Media> {
@@ -67,5 +67,18 @@ impl MediaSet {
 
     pub const fn screenshot_gameplay(&self) -> Option<&Media> {
         self.screenshot_gameplay.as_ref()
+    }
+}
+
+#[cfg(test)]
+impl Default for MediaSet {
+    fn default() -> Self {
+        Self {
+            box_front_2d: None,
+            box_front_2d_thumbnail: Media::new(MediaType::BoxFront2DThumbnail, PathBuf::from("test-default.png")),
+            screenshot_loading: None,
+            screenshot_title: None,
+            screenshot_gameplay: None,
+        }
     }
 }

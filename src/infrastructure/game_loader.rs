@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
@@ -70,6 +70,12 @@ fn load_game_from_config(config_path: &Path, game_dir: &Path) -> Result<Game, St
     Ok(Game::new(GameId::new(config.id), config.title, config.sort_title, year, config.publisher, config.notes, media_set, roms))
 }
 
+fn get_default_box_art_path() -> PathBuf {
+    let exe_dir = std::env::current_exe().expect("Failed to get executable path").parent().expect("Failed to get executable directory").to_path_buf();
+
+    exe_dir.join("assets").join("default-box-art.png")
+}
+
 fn load_media_set(game_dir: &Path, media_configs: Option<Vec<MediaConfig>>) -> MediaSet {
     let media_dir = game_dir.join("media");
 
@@ -96,6 +102,11 @@ fn load_media_set(game_dir: &Path, media_configs: Option<Vec<MediaConfig>>) -> M
             }
         }
     }
+
+    let box_front_2d_thumbnail = box_front_2d_thumbnail.unwrap_or_else(|| {
+        let default_path = get_default_box_art_path();
+        Media::new(MediaType::BoxFront2DThumbnail, default_path)
+    });
 
     MediaSet::new(box_front_2d, box_front_2d_thumbnail, screenshot_loading, screenshot_title, screenshot_gameplay)
 }
