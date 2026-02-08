@@ -52,24 +52,16 @@ impl App {
                 self.window_width = width;
             }
             Message::NextGame => {
-                if let Some(cursor) = &self.cursor {
-                    self.cursor = self.library.next_game(cursor);
-                }
+                self.cursor = self.cursor.as_ref().and_then(|cursor| self.library.next_game(cursor));
             }
             Message::PreviousGame => {
-                if let Some(cursor) = &self.cursor {
-                    self.cursor = self.library.previous_game(cursor);
-                }
+                self.cursor = self.cursor.as_ref().and_then(|cursor| self.library.previous_game(cursor));
             }
             Message::NextSection => {
-                if let Some(cursor) = &self.cursor {
-                    self.cursor = self.library.next_section(cursor);
-                }
+                self.cursor = self.cursor.as_ref().and_then(|cursor| self.library.next_section(cursor));
             }
             Message::PreviousSection => {
-                if let Some(cursor) = &self.cursor {
-                    self.cursor = self.library.previous_section(cursor);
-                }
+                self.cursor = self.cursor.as_ref().and_then(|cursor| self.library.previous_section(cursor));
             }
             Message::ToSection(c) => {
                 let section_key = c.to_string();
