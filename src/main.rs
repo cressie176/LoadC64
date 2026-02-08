@@ -1,4 +1,4 @@
-use iced::widget::{column, container, image, row, text};
+use iced::widget::{column, container, row, text};
 use iced::{Element, Task};
 
 mod cli;
@@ -10,7 +10,7 @@ use domain::cursor::Cursor;
 use domain::library::Library;
 use domain::section::CharacterSection;
 use infrastructure::{game_loader, vice_emulator::ViceEmulator};
-use ui::{carousel_layout::CarouselLayout, input};
+use ui::{carousel, carousel_layout::CarouselLayout, game_info, input};
 
 const DEFAULT_WINDOW_WIDTH: f32 = 1280.0;
 
@@ -99,10 +99,10 @@ impl App {
 
     fn view(&self) -> Element<'_, Message> {
         let layout = CarouselLayout::new(self.window_width);
-        let (carousel_games, game_info) = self.get_carousel_games(&layout);
-        let carousel = Self::get_carousel_container(carousel_games, &layout);
+        let (carousel_games, info) = self.get_carousel_games(&layout);
+        let carousel = carousel::create_carousel_container(carousel_games, &layout);
 
-        let content = column![carousel, game_info].spacing(20);
+        let content = column![carousel, info].spacing(20);
 
         container(content)
             .center_x(iced::Fill)
@@ -111,79 +111,24 @@ impl App {
             .into()
     }
 
-    fn get_carousel_container<'a>(carousel_games: iced::widget::Row<'a, Message>, layout: &CarouselLayout) -> iced::widget::Container<'a, Message> {
-        container(carousel_games).padding(iced::Padding { top: 0.0, right: layout.canvas_padding(), bottom: 0.0, left: layout.canvas_padding() }).center_x(iced::Fill).style(
-            |_theme| container::Style {
-                background: Some(iced::Background::Color(iced::Color::BLACK)),
-                border: iced::Border { color: iced::Color::BLACK, width: 0.0, radius: iced::border::Radius::from(0.0) },
-                ..Default::default()
-            },
-        )
-    }
-
     fn get_carousel_games(&self, layout: &CarouselLayout) -> (iced::widget::Row<'_, Message>, Element<'_, Message>) {
-        let mut carousel_games = row![].spacing(CarouselLayout::spacing()).align_y(iced::Alignment::Center);
-        let mut game_info: Element<'_, Message> = container(text("")).into();
+        let mut info: Element<'_, Message> = container(text("")).into();
 
-        if let Some(cursor) = &self.cursor {
-            let games = self.library.get_game_window(cursor, layout.offset(), layout.number_of_games());
-
-            if let Some(games) = games {
-                for (index, game) in games.iter().enumerate() {
-                    let carousel_item = Self::create_carousel_item(game, layout, index);
-                    carousel_games = carousel_games.push(carousel_item);
-                }
-
+        #[allow(clippy::option_if_let_else)]
+        let carousel_games = if let Some(cursor) = &self.cursor {
+            if let Some(games) = self.library.get_game_window(cursor, layout.offset(), layout.number_of_games()) {
                 if let Some(current_game) = games.get(layout.current_game_index()) {
-                    game_info = Self::create_game_info(current_game);
+                    info = game_info::create_game_info(current_game);
                 }
+                carousel::create_carousel_row(&games, layout)
+            } else {
+                row![].spacing(CarouselLayout::spacing()).align_y(iced::Alignment::Center)
             }
-        }
-
-        (carousel_games, game_info)
-    }
-
-    fn create_game_info(game: &domain::game::Game) -> Element<'_, Message> {
-        let title = game.title().to_string();
-        let mut metadata_parts = Vec::new();
-        if let Some(year) = game.year() {
-            metadata_parts.push(year.to_string());
-        }
-        if let Some(publisher) = game.publisher() {
-            metadata_parts.push(publisher.to_string());
-        }
-
-        let metadata = if metadata_parts.is_empty() { None } else { Some(metadata_parts.join(" - ")) };
-
-        let info: iced::widget::Column<'_, Message> = if let Some(metadata_text) = metadata {
-            column![text(title).size(30).color(iced::Color::WHITE), text(metadata_text).size(18).color(iced::Color::WHITE)].spacing(5).align_x(iced::alignment::Horizontal::Center)
         } else {
-            column![text(title).size(30).color(iced::Color::WHITE)].spacing(5).align_x(iced::alignment::Horizontal::Center)
+            row![].spacing(CarouselLayout::spacing()).align_y(iced::Alignment::Center)
         };
 
-        container(info).center_x(iced::Fill).into()
-    }
-
-    fn create_carousel_item(game: &domain::game::Game, layout: &CarouselLayout, index: usize) -> iced::widget::Container<'static, Message> {
-        let width = layout.game_width(index);
-        let height = layout.game_height(index);
-        let box_art_path = game.media_set().box_front_2d_thumbnail().path();
-
-        let img = Self::create_game_cover(box_art_path, width, height);
-        Self::create_game_container(img, width, height)
-    }
-
-    fn create_game_cover(box_art_path: &std::path::Path, width: f32, height: f32) -> iced::widget::Image {
-        image(box_art_path.to_string_lossy().to_string()).width(iced::Length::Fixed(width)).height(iced::Length::Fixed(height)).content_fit(iced::ContentFit::Fill)
-    }
-
-    fn create_game_container(img: iced::widget::Image, width: f32, height: f32) -> iced::widget::Container<'static, Message> {
-        container(img)
-            .width(iced::Length::Fixed(width))
-            .height(iced::Length::Fixed(height))
-            .center_x(iced::Length::Fixed(width))
-            .center_y(iced::Length::Fixed(height))
-            .style(|_theme| container::Style { background: Some(iced::Background::Color(iced::Color::BLACK)), ..Default::default() })
+        (carousel_games, info)
     }
 
     #[allow(clippy::unused_self)]
