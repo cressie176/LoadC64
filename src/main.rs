@@ -1,7 +1,3 @@
-use std::time::Duration;
-
-use gilrs::{Axis, Button, Event, EventType, Gilrs};
-use iced::keyboard::{Key, key};
 use iced::widget::{column, container, image, row, text};
 use iced::{Element, Task};
 
@@ -14,7 +10,7 @@ use domain::cursor::Cursor;
 use domain::library::Library;
 use domain::section::CharacterSection;
 use infrastructure::{game_loader, vice_emulator::ViceEmulator};
-use ui::carousel_layout::CarouselLayout;
+use ui::{carousel_layout::CarouselLayout, input};
 
 const DEFAULT_WINDOW_WIDTH: f32 = 1280.0;
 
@@ -198,12 +194,12 @@ impl App {
         });
 
         let keyboard_events = iced::keyboard::on_key_press(|key, _modifiers| match key {
-            Key::Named(key::Named::ArrowLeft) => Some(Message::PreviousGame),
-            Key::Named(key::Named::ArrowRight) => Some(Message::NextGame),
-            Key::Named(key::Named::PageUp) => Some(Message::PreviousSection),
-            Key::Named(key::Named::PageDown) => Some(Message::NextSection),
-            Key::Named(key::Named::Enter) => Some(Message::LaunchGame),
-            Key::Character(c) => {
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::ArrowLeft) => Some(Message::PreviousGame),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::ArrowRight) => Some(Message::NextGame),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageUp) => Some(Message::PreviousSection),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageDown) => Some(Message::NextSection),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::Enter) => Some(Message::LaunchGame),
+            iced::keyboard::Key::Character(c) => {
                 if let Some(first_char) = c.chars().next()
                     && first_char.is_alphanumeric()
                 {
@@ -214,69 +210,9 @@ impl App {
             _ => None,
         });
 
-        let gamepad_subscription = iced::Subscription::run(gamepad_worker);
+        let gamepad_events =
+            iced::Subscription::run(|| input::gamepad_worker(Message::PreviousGame, Message::NextGame, Message::PreviousSection, Message::NextSection, Message::LaunchGame));
 
-        iced::Subscription::batch(vec![window_events, keyboard_events, gamepad_subscription])
+        iced::Subscription::batch(vec![window_events, keyboard_events, gamepad_events])
     }
-}
-
-fn gamepad_worker() -> impl iced::futures::Stream<Item = Message> {
-    use iced::futures::stream::StreamExt;
-
-    iced::stream::channel(50, move |mut output| async move {
-        let mut gilrs = match Gilrs::new() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
-
-        let mut interval = async_std::stream::interval(Duration::from_millis(16));
-        let mut left_stick_x = 0.0_f32;
-        let mut frame_counter = 0_u32;
-
-        loop {
-            interval.next().await;
-            frame_counter += 1;
-
-            while let Some(Event { event, .. }) = gilrs.next_event() {
-                match event {
-                    EventType::ButtonPressed(button, _) => {
-                        let message = match button {
-                            Button::DPadLeft => Some(Message::PreviousGame),
-                            Button::DPadRight => Some(Message::NextGame),
-                            Button::LeftTrigger2 => Some(Message::PreviousSection),
-                            Button::RightTrigger2 => Some(Message::NextSection),
-                            Button::South => Some(Message::LaunchGame), // A button on Xbox, X on PlayStation
-                            _ => None,
-                        };
-
-                        if let Some(msg) = message {
-                            let _ = output.try_send(msg);
-                        }
-                    }
-                    EventType::AxisChanged(axis, value, _) => {
-                        if axis == Axis::LeftStickX {
-                            left_stick_x = value;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
-            // Send repeat messages every 3 frames (~50ms) if thumbstick is held
-            if frame_counter.is_multiple_of(3) {
-                const AXIS_THRESHOLD: f32 = 0.5;
-                let message = if left_stick_x < -AXIS_THRESHOLD {
-                    Some(Message::PreviousGame)
-                } else if left_stick_x > AXIS_THRESHOLD {
-                    Some(Message::NextGame)
-                } else {
-                    None
-                };
-
-                if let Some(msg) = message {
-                    let _ = output.try_send(msg);
-                }
-            }
-        }
-    })
 }
