@@ -36,7 +36,7 @@ jobs:
           components: clippy
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libudev-dev
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -69,7 +69,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libudev-dev
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -102,7 +102,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libudev-dev
 
       - name: Cache cargo registry
         uses: actions/cache@v4
