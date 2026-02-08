@@ -10,7 +10,7 @@ use domain::cursor::Cursor;
 use domain::library::Library;
 use domain::section::CharacterSection;
 use infrastructure::{game_loader, vice_emulator::ViceEmulator};
-use ui::{carousel, carousel_layout::CarouselLayout, game_info, input};
+use ui::{carousel, carousel_layout::CarouselLayout, game_info, input, theme};
 
 const DEFAULT_WINDOW_WIDTH: f32 = 1280.0;
 
@@ -94,12 +94,12 @@ impl App {
         let (carousel_games, info) = self.get_carousel_games(&layout);
         let carousel = carousel::create_carousel_container(carousel_games, &layout);
 
-        let content = column![carousel, info].spacing(20);
+        let content = column![carousel, info].spacing(theme::CONTENT_SPACING);
 
         container(content)
             .center_x(iced::Fill)
             .center_y(iced::Fill)
-            .style(|_theme| container::Style { background: Some(iced::Background::Color(iced::Color::BLACK)), ..Default::default() })
+            .style(|_theme| container::Style { background: Some(iced::Background::Color(theme::BACKGROUND_COLOR)), ..Default::default() })
             .into()
     }
 
