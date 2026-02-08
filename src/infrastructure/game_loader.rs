@@ -98,6 +98,29 @@ fn load_media_set(game_dir: &Path, media_configs: Option<Vec<MediaConfig>>) -> M
     let mut screenshot_title = None;
     let mut screenshot_gameplay = None;
 
+    let default_files = [
+        ("2d-box-front.png", MediaType::BoxFront2D),
+        ("2d-box-front.jpg", MediaType::BoxFront2D),
+        ("2d-box-front-thumbnail.png", MediaType::BoxFront2DThumbnail),
+        ("2d-box-front-thumbnail.jpg", MediaType::BoxFront2DThumbnail),
+        ("screenshot-loading.png", MediaType::ScreenshotLoading),
+        ("screenshot-title.png", MediaType::ScreenshotTitle),
+        ("screenshot-gameplay.png", MediaType::ScreenshotGameplay),
+    ];
+
+    for (filename, media_type) in &default_files {
+        let media_path = media_dir.join(filename);
+        if media_path.exists() {
+            match media_type {
+                MediaType::BoxFront2D => box_front_2d = Some(Media::new(media_type.clone(), media_path)),
+                MediaType::BoxFront2DThumbnail => box_front_2d_thumbnail = Some(Media::new(media_type.clone(), media_path)),
+                MediaType::ScreenshotLoading => screenshot_loading = Some(Media::new(media_type.clone(), media_path)),
+                MediaType::ScreenshotTitle => screenshot_title = Some(Media::new(media_type.clone(), media_path)),
+                MediaType::ScreenshotGameplay => screenshot_gameplay = Some(Media::new(media_type.clone(), media_path)),
+            }
+        }
+    }
+
     if let Some(configs) = media_configs {
         for config in configs {
             let media_path = media_dir.join(&config.file);
