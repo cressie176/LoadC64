@@ -1,3 +1,4 @@
+use iced::futures::StreamExt;
 use iced::widget::{Stack, column, container, row, text};
 use iced::{Element, Task};
 use std::path::PathBuf;
@@ -49,6 +50,7 @@ enum Message {
     LaunchGame,
     GameLaunched(String),
     QuitGame,
+    CheckViceDisconnect,
     ToggleMode,
     HideGame,
 }
@@ -88,6 +90,9 @@ impl App {
         }
 
         match message {
+            Message::CheckViceDisconnect => {
+                // Disconnect check already happened above
+            }
             Message::WindowResized(width, _height) => {
                 self.window_width = width;
             }
@@ -275,8 +280,16 @@ impl App {
         let gamepad_events =
             iced::Subscription::run(|| input::gamepad_worker(Message::PreviousGame, Message::NextGame, Message::PreviousSection, Message::NextSection, Message::LaunchGame));
 
-        let subscriptions = vec![window_events, keyboard_events, gamepad_events];
+        let mut subscriptions = vec![window_events, keyboard_events, gamepad_events];
+
+        if matches!(self.mode, Mode::Playing { .. }) {
+            subscriptions.push(iced::Subscription::run(vice_disconnect_ticker));
+        }
 
         iced::Subscription::batch(subscriptions)
     }
+}
+
+fn vice_disconnect_ticker() -> impl iced::futures::Stream<Item = Message> {
+    async_std::stream::interval(std::time::Duration::from_millis(500)).map(|()| Message::CheckViceDisconnect)
 }

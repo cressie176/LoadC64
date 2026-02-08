@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -45,21 +45,32 @@ impl ViceMonitor {
             return;
         };
 
-        loop {
-            let Ok(command) = command_rx.try_recv() else {
-                thread::sleep(Duration::from_millis(10));
-                continue;
-            };
+        let read_stream = stream.try_clone().expect("Failed to clone stream");
+        let reader = BufReader::new(read_stream);
+        let mut lines = reader.lines();
 
-            let cmd = format!("{command}\n");
-            if stream.write_all(cmd.as_bytes()).is_err() {
-                let _ = disconnect_tx.send(());
-                break;
+        stream.set_read_timeout(Some(Duration::from_millis(10))).ok();
+
+        loop {
+            if let Ok(command) = command_rx.try_recv() {
+                let cmd = format!("{command}\n");
+                if stream.write_all(cmd.as_bytes()).is_err() {
+                    let _ = disconnect_tx.send(());
+                    break;
+                }
+                if stream.flush().is_err() {
+                    let _ = disconnect_tx.send(());
+                    break;
+                }
             }
-            if stream.flush().is_err() {
-                let _ = disconnect_tx.send(());
-                break;
-            }
+
+            if let Some(result) = lines.next()
+                && result.is_err() {
+                    let _ = disconnect_tx.send(());
+                    break;
+                }
+
+            thread::sleep(Duration::from_millis(10));
         }
     }
 }
